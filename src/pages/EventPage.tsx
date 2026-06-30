@@ -5,13 +5,11 @@ import type { Evento } from '../types';
 import { getEvento } from '../services/events';
 import { EVENT_COLORS } from '../theme/palette';
 import { useReveal } from '../hooks/useReveal';
-import { useToast } from '../context/ToastContext';
 import { Nav } from '../components/Nav';
 
 export function EventPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const toast = useToast();
   const [evento, setEvento] = useState<Evento | null | undefined>(undefined);
   const ref = useReveal<HTMLDivElement>([evento]);
 
@@ -47,10 +45,10 @@ export function EventPage() {
   const cor = EVENT_COLORS[evento.cor];
   const style = { '--ev': cor } as CSSProperties;
   const det = evento.detalhe;
+  const slugAtual = evento.slug;
 
   function inscrever() {
-    // Fase 2: abrirá o formulário de inscrição em etapas.
-    toast('O formulário de inscrição será conectado na próxima fase.');
+    navigate(`/evento/${slugAtual}/inscricao`);
   }
 
   return (
