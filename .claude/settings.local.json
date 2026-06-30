@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm run build)",
+      "PowerShell(git init)",
+      "PowerShell(git branch -M main)",
+      "PowerShell(git remote add origin https://github.com/afsysadm/afsys_portal_eventos.git)",
+      "PowerShell(git add .; git commit -m \"Fase 1: portal de eventos \\(home + detalhe, mock\\)\" --% -c user.name=\"afsysadm\" -c user.email=\"suporte@afsys.com.br\")"
+    ]
+  }
+}
