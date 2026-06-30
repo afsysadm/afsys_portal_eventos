@@ -234,7 +234,7 @@ export function InscricaoPage() {
               <button
                 type="button"
                 className="wz-choice"
-                onClick={() => navigate(`/evento/${evento.slug}`)}
+                onClick={() => setFase('declined')}
               >
                 Não autorizo
               </button>
