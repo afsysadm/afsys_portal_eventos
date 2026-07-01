@@ -51,4 +51,5 @@ export interface CpfCheckResult {
 export interface SubmitResult {
   protocolo: string;
   status: StatusInscricao;
+  jaInscrito?: boolean;
 }

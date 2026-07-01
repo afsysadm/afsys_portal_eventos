@@ -18,6 +18,7 @@ import {
 } from '../lib/validators';
 import { Nav } from '../components/Nav';
 import { Stepper } from '../components/inscricao/Stepper';
+import { Turnstile } from '../components/inscricao/Turnstile';
 import { TextField, ChoiceField, FileField } from '../components/inscricao/fields';
 
 type Fase = 'form' | 'declined' | 'already' | 'success';
@@ -36,6 +37,8 @@ export function InscricaoPage() {
   const [fase, setFase] = useState<Fase>('form');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [erroSubmit, setErroSubmit] = useState('');
   const [jaInscrito, setJaInscrito] = useState<CpfCheckResult | null>(null);
 
   useEffect(() => {
@@ -146,12 +149,24 @@ export function InscricaoPage() {
   }
 
   async function enviar() {
+    setErroSubmit('');
     setBusy(true);
-    const r = await submitInscricao(form, evento!);
-    setBusy(false);
-    setResult(r);
-    setFase('success');
-    window.scrollTo(0, 0);
+    try {
+      const r = await submitInscricao(form, evento!, turnstileToken);
+      if (r.jaInscrito) {
+        setJaInscrito({ found: true, protocolo: r.protocolo, status: r.status });
+        setFase('already');
+      } else {
+        setResult(r);
+        setFase('success');
+      }
+      window.scrollTo(0, 0);
+    } catch {
+      setErroSubmit('Não foi possível enviar sua inscrição agora. Verifique a verificação de segurança e tente novamente.');
+      setTurnstileToken('');
+    } finally {
+      setBusy(false);
+    }
   }
 
   // ---------- telas de desfecho ----------
@@ -391,6 +406,16 @@ export function InscricaoPage() {
               {!semCnpj && <Item k="Possui holerite" v={form.possuiHolerite} />}
               {form.possuiHolerite === 'Sim' && <Item k="Holerite" v={form.holeriteNome} />}
             </ul>
+
+            <div className="wz-verify">
+              <span className="wz-label">Verificação de segurança</span>
+              <Turnstile
+                onVerify={(t) => setTurnstileToken(t)}
+                onExpire={() => setTurnstileToken('')}
+              />
+            </div>
+
+            {erroSubmit && <p className="wz-err wz-err-block">{erroSubmit}</p>}
           </div>
         )}
 
@@ -405,7 +430,12 @@ export function InscricaoPage() {
                 {busy ? 'Aguarde…' : 'Avançar →'}
               </button>
             ) : (
-              <button className="wz-btn" style={style} onClick={enviar} disabled={busy}>
+              <button
+                className="wz-btn"
+                style={style}
+                onClick={enviar}
+                disabled={busy || !turnstileToken}
+              >
                 {busy ? 'Enviando…' : 'Enviar inscrição'}
               </button>
             )}

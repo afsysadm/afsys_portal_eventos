@@ -278,3 +278,9 @@ footer{border-top:1px solid var(--line);padding:48px 0 40px;background:rgba(10,6
 .wz-proto b{color:var(--ev,var(--lime))}
 .wz-status-line{font-size:15px}
 .wz-final .wz-btn{margin-top:18px}
+
+/* Turnstile / verificação no wizard */
+.wz-verify{margin-top:22px}
+.wz-verify .wz-label{margin-bottom:10px}
+.wz-turnstile{min-height:65px}
+.wz-err-block{margin-top:14px;padding:12px 14px;background:rgba(255,93,115,.12);border:1px solid rgba(255,93,115,.4);border-radius:12px}

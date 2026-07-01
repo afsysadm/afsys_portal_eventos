@@ -6,6 +6,7 @@ import type {
   StatusInscricao,
 } from '../types/inscricao';
 import { onlyDigits } from '../lib/validators';
+import { API_BASE } from '../config';
 
 // ---------------------------------------------------------------------------
 // SERVIÇO DE INSCRIÇÃO
@@ -68,20 +69,47 @@ export function montarPayload(
   };
 }
 
-// Envia a inscrição. Mock: calcula status, gera protocolo e resolve.
-// Integração: POST multipart (com a imagem do holerite) ao endpoint público.
+// Envia a inscrição ao endpoint público do módulo (porta 2), incluindo o
+// token do Turnstile. O backend valida (Turnstile, CPF, dedup), recalcula o
+// status e gera o protocolo — por isso confiamos na resposta do servidor.
 export async function submitInscricao(
   form: InscricaoForm,
-  _evento: Evento
+  evento: Evento,
+  turnstileToken: string
 ): Promise<SubmitResult> {
-  const status = calcularStatus(form);
-  const protocolo = gerarProtocolo('GC');
-  const payload = montarPayload(form, status, protocolo);
+  // O protocolo é gerado no servidor; enviamos vazio (o backend ignora).
+  const payload = montarPayload(form, calcularStatus(form), '');
+  payload['turnstile_token'] = turnstileToken;
+  payload['website'] = ''; // honeypot (deve permanecer vazio)
 
-  // Mock: apenas registra o payload que seria enviado.
-  // eslint-disable-next-line no-console
-  console.log('[mock submitInscricao] payload:', payload);
+  const url = `${API_BASE}/afsys_inscricoes/publico/submit/${evento.slug}`;
 
-  await new Promise((r) => setTimeout(r, 900));
-  return { protocolo, status };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  let data: {
+    ok?: boolean;
+    protocolo?: string;
+    status?: string;
+    ja_inscrito?: boolean;
+    error?: string;
+  } = {};
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error('resposta_invalida');
+  }
+
+  if (!data.ok) {
+    throw new Error(data.error || 'submit_falhou');
+  }
+
+  return {
+    protocolo: data.protocolo || '',
+    status: (data.status as StatusInscricao) || 'INSCRITO',
+    jaInscrito: !!data.ja_inscrito,
+  };
 }
