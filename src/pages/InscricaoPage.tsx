@@ -174,11 +174,20 @@ export function InscricaoPage() {
       return;
     }
 
-    // Completar pendência: preenchido o passo que faltava, vai direto à Revisão
-    // (os demais passos já estão resolvidos na inscrição original).
-    if (completando && (step === S.EMPRESA || step === S.HOLERITE)) {
-      setStep(S.REVISAO);
-      return;
+    // Completar pendência (ENCADEADO): ordem natural CNPJ → Holerite → Inscrito.
+    //  - pendência "cnpj": passo Empresa → Holerite → Revisão (os DOIS passos).
+    //  - pendência "holerite": passo Holerite → Revisão (só o holerite).
+    if (completando) {
+      // Após o CNPJ (passo Empresa) ainda falta o holerite: NÃO pular para a Revisão.
+      if (step === S.EMPRESA) {
+        setStep(S.HOLERITE);
+        return;
+      }
+      // Holerite preenchido (em ambas as pendências) → segue para a Revisão.
+      if (step === S.HOLERITE) {
+        setStep(S.REVISAO);
+        return;
+      }
     }
 
     // Empresa sem CNPJ → pula Holerite, vai direto à Revisão.
@@ -190,13 +199,21 @@ export function InscricaoPage() {
   }
 
   function voltar() {
-    // Modo completar pendência: a Revisão volta ao passo da pendência; do passo
-    // da pendência, volta ao CPF e sai do modo (retoma o fluxo normal).
+    // Modo completar pendência (encadeado). Voltar percorre o inverso do avançar:
+    //  cnpj:     Revisão → Holerite → Empresa → CPF (sai do modo)
+    //  holerite: Revisão → Holerite → CPF (sai do modo)
     if (completando) {
+      // Em ambas as pendências, o passo imediatamente antes da Revisão é o Holerite.
       if (step === S.REVISAO) {
-        setStep(completando === 'cnpj' ? S.EMPRESA : S.HOLERITE);
+        setStep(S.HOLERITE);
         return;
       }
+      // Na pendência cnpj, o Holerite volta ao passo Empresa (CNPJ).
+      if (completando === 'cnpj' && step === S.HOLERITE) {
+        setStep(S.EMPRESA);
+        return;
+      }
+      // Do primeiro passo da pendência, volta ao CPF e sai do modo completar.
       setCompletando(null);
       renovarCpfTurnstile();
       setStep(S.CPF);
@@ -535,7 +552,7 @@ export function InscricaoPage() {
                   <Item k="CPF" v={form.cpf} />
                   {completando === 'cnpj' && <Item k="CNPJ" v={form.cnpj} />}
                   {completando === 'cnpj' && <Item k="Empresa" v={form.empresaNome} />}
-                  {completando === 'holerite' && (
+                  {(completando === 'cnpj' || completando === 'holerite') && (
                     <Item
                       k="Holerite"
                       v={form.holeriteNome || 'Não anexado (ficará pendente)'}

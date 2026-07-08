@@ -129,6 +129,11 @@ function montarCamposPendencia(
     base.TRABALHADOR_TEM_CNPJ = form.temCnpj || '';
     base.CNPJ_TRABALHADOR = form.temCnpj === 'Sim' ? onlyDigits(form.cnpj) : '';
     base.EMPRESA_NOME = form.temCnpj === 'Sim' ? form.empresaNome.trim() : '';
+    // Fluxo cnpj é ENCADEADO (CNPJ → Holerite): o holerite também é coletado
+    // agora, então vai no payload. O backend só marca INSCRITO com os DOIS
+    // (possui_cnpj=1 E possui_holerite=1); sem estes campos ficaria PENDENTE HOLERITE.
+    base.POSSUI_HOLERITE = form.possuiHolerite || '';
+    base.ENVIO_HOLERITE = form.holeriteNome || '';
   } else {
     base.POSSUI_HOLERITE = form.possuiHolerite || '';
     base.ENVIO_HOLERITE = form.holeriteNome || '';
