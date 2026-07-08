@@ -83,13 +83,13 @@ export function FileField({ label, fileName, onPick, error, hint }: FileFieldPro
       <label className={'wz-file' + (error ? ' err' : '')}>
         <input
           type="file"
-          accept="image/*"
+          accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,image/*,application/pdf"
           hidden
           onChange={(e) => onPick(e.target.files?.[0] ?? null)}
         />
-        <span className="wz-file-ico">📷</span>
+        <span className="wz-file-ico">📎</span>
         <span className="wz-file-txt">
-          {fileName ? fileName : 'Toque para enviar a imagem (foto ou print)'}
+          {fileName ? fileName : 'Toque para enviar o holerite (PDF ou foto)'}
         </span>
       </label>
       {hint && !error && <span className="wz-hint">{hint}</span>}

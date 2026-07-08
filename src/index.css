@@ -262,6 +262,7 @@ footer{border-top:1px solid var(--line);padding:48px 0 40px;background:rgba(10,6
 .wz-btn-ghost{background:var(--glass);border:1px solid var(--line);color:var(--text);font-family:var(--ui);font-weight:600;font-size:14.5px;padding:14px 20px;border-radius:12px;cursor:pointer;transition:.18s}
 .wz-btn-ghost:hover:not(:disabled){background:var(--glass-2)}
 .wz-btn-ghost:disabled{opacity:.5;cursor:default}
+.wz-back-lgpd{margin-top:18px;width:100%}
 
 /* revisão */
 .wz-review{list-style:none;display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden}

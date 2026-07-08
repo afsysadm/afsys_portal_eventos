@@ -11,20 +11,17 @@ import { API_BASE } from '../config';
 // ---------------------------------------------------------------------------
 // SERVIÇO DE INSCRIÇÃO
 //
-// Hoje é mock. Na fase de integração, as duas funções abaixo passam a falar
-// com o endpoint público do módulo (que, no servidor, faz a checagem de CPF,
-// o enriquecimento na base AFSYS e a gravação — sem expor tokens no browser).
+// Fala com o endpoint público do módulo afsys_inscricoes (rotas sob publico/,
+// isentas de CSRF, protegidas por Turnstile). O servidor faz a checagem de CPF,
+// o enriquecimento na base AFSYS, valida MIME/tamanho do arquivo, recalcula o
+// status e gera o protocolo — por isso confiamos na resposta do servidor.
+//
+// Erros são lançados com a mensagem = código do backend (ex.: 'turnstile_falhou',
+// 'inscricoes_encerradas'), para que a página exiba a mensagem apropriada.
 // ---------------------------------------------------------------------------
 
-// Gera um protocolo no padrão {PREFIXO}-{ANO}-{4 dígitos}. Apenas para o mock;
-// na integração, o protocolo é gerado no servidor.
-export function gerarProtocolo(prefixo = 'GC'): string {
-  const ano = new Date().getFullYear();
-  const seq = Math.floor(1000 + Math.random() * 9000);
-  return `${prefixo}-${ano}-${seq}`;
-}
-
-// Regra de status idêntica ao fluxo do Typebot:
+// Regra de status local (só para exibição otimista; o servidor é a fonte da
+// verdade e devolve o status final).
 //  - sem CNPJ                  => PENDENCIA CNPJ
 //  - com CNPJ e sem holerite   => PENDENTE HOLERITE
 //  - com CNPJ e com holerite   => INSCRITO
@@ -34,24 +31,55 @@ export function calcularStatus(form: InscricaoForm): StatusInscricao {
   return 'INSCRITO';
 }
 
-// Checagem de CPF. Mock: retorna "não encontrado" (segue o cadastro).
-// Integração: GET ao endpoint público -> { found, status, protocolo, ...enriquecimento }.
-export async function checarCpf(cpf: string): Promise<CpfCheckResult> {
-  const limpo = onlyDigits(cpf);
-  await new Promise((r) => setTimeout(r, 500));
-  // Mock fixo. (Para testar o caminho "já inscrito", trocar found para true.)
-  void limpo;
+// Checagem de CPF — etapa [1].
+// POST publico/checar_cpf/{slug} com { CPF (maiúsculo), turnstile_token }.
+// O servidor limpa a máscara internamente; enviamos só os dígitos.
+export async function checarCpf(
+  cpf: string,
+  slug: string,
+  turnstileToken: string
+): Promise<CpfCheckResult> {
+  const url = `${API_BASE}/afsys_inscricoes/publico/checar_cpf/${slug}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ CPF: onlyDigits(cpf), turnstile_token: turnstileToken }),
+  });
+
+  let data: {
+    ok?: boolean;
+    ja_inscrito?: boolean;
+    protocolo?: string;
+    data_inscricao?: string | null;
+    error?: string;
+  } = {};
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error('resposta_invalida');
+  }
+
+  if (!data.ok) {
+    // cpf_invalido, turnstile_falhou, evento_nao_encontrado, method_not_allowed…
+    throw new Error(data.error || 'checar_falhou');
+  }
+
+  if (data.ja_inscrito) {
+    return {
+      found: true,
+      protocolo: data.protocolo,
+      dataInscricao: data.data_inscricao ?? null,
+    };
+  }
   return { found: false };
 }
 
-// Monta o payload no formato exato esperado pelo módulo afsys_inscricoes.
-// Os campos *_AFSYS e os de data/registro são anexados pelo backend na
-// integração; aqui ficam só os coletados + os derivados (status/protocolo).
-export function montarPayload(
-  form: InscricaoForm,
-  status: StatusInscricao,
-  protocolo: string
-): Record<string, string> {
+// Monta o corpo (multipart) no formato esperado pelo módulo afsys_inscricoes.
+// Os campos *_AFSYS e os de data/registro são anexados pelo servidor; aqui vão
+// só os coletados. Os nomes NÃO podem ser renomeados (o backend lê $_POST com
+// exatamente estes nomes).
+function montarCampos(form: InscricaoForm): Record<string, string> {
   return {
     CPF: onlyDigits(form.cpf),
     NOME_COMPLETO: form.nomeCompleto.trim(),
@@ -64,31 +92,33 @@ export function montarPayload(
     WHATSAPP: onlyDigits(form.whatsapp),
     POSSUI_HOLERITE: form.possuiHolerite || '',
     ENVIO_HOLERITE: form.holeriteNome || '',
-    STATUS: status,
-    PROTOCOLO: protocolo,
+    STATUS: calcularStatus(form),
+    PROTOCOLO: '', // gerado no servidor; enviamos vazio
   };
 }
 
-// Envia a inscrição ao endpoint público do módulo (porta 2), incluindo o
-// token do Turnstile. O backend valida (Turnstile, CPF, dedup), recalcula o
-// status e gera o protocolo — por isso confiamos na resposta do servidor.
+// Submit final — multipart/form-data. O arquivo do holerite vai no campo `file`
+// e só é anexado quando "Possui holerite? = Sim" E o usuário anexou algo válido.
+// Não definimos Content-Type manualmente: o browser inclui o boundary correto.
 export async function submitInscricao(
   form: InscricaoForm,
   evento: Evento,
   turnstileToken: string
 ): Promise<SubmitResult> {
-  // O protocolo é gerado no servidor; enviamos vazio (o backend ignora).
-  const payload = montarPayload(form, calcularStatus(form), '');
-  payload['turnstile_token'] = turnstileToken;
-  payload['website'] = ''; // honeypot (deve permanecer vazio)
+  const fd = new FormData();
+  const campos = montarCampos(form);
+  for (const [k, v] of Object.entries(campos)) fd.append(k, v);
+
+  fd.append('turnstile_token', turnstileToken);
+  fd.append('website', ''); // honeypot — deve permanecer SEMPRE vazio
+
+  if (form.possuiHolerite === 'Sim' && form.holeriteArquivo) {
+    fd.append('file', form.holeriteArquivo, form.holeriteArquivo.name);
+  }
 
   const url = `${API_BASE}/afsys_inscricoes/publico/submit/${evento.slug}`;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  const res = await fetch(url, { method: 'POST', body: fd });
 
   let data: {
     ok?: boolean;
@@ -104,9 +134,13 @@ export async function submitInscricao(
   }
 
   if (!data.ok) {
+    // validacao, turnstile_falhou, inscricoes_encerradas,
+    // evento_nao_encontrado, insert_failed…
     throw new Error(data.error || 'submit_falhou');
   }
 
+  // Protocolo vem pronto do servidor (pode ser 'GC-…', 'INSC-…' ou até 'OK' no
+  // caso do honeypot). O front apenas exibe — não formata nem presume o padrão.
   return {
     protocolo: data.protocolo || '',
     status: (data.status as StatusInscricao) || 'INSCRITO',

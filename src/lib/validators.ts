@@ -79,7 +79,22 @@ export function isValidPhone(value: string): boolean {
   return d.length === 10 || d.length === 11;
 }
 
-export function isImageFile(file: File): boolean {
-  // Aceita apenas imagens; bloqueia PDF e demais formatos.
-  return file.type.startsWith('image/');
+// ----- Holerite -----
+// Validação apenas de UX: o servidor revalida extensão, tamanho e o MIME real
+// (via finfo). HEIC/HEIF costumam chegar com type vazio ou octet-stream, por
+// isso a checagem é pela extensão do nome do arquivo.
+
+export const HOLERITE_TIPOS = ['PDF', 'JPG', 'JPEG', 'PNG', 'HEIC', 'HEIF'];
+export const HOLERITE_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const HOLERITE_EXT = /\.(pdf|jpe?g|png|heic|heif)$/i;
+
+// Retorna uma mensagem de erro (string) ou null quando o arquivo é aceitável.
+export function validarHolerite(file: File): string | null {
+  if (!HOLERITE_EXT.test(file.name)) {
+    return 'Formato não aceito. Envie PDF, JPG, JPEG, PNG, HEIC ou HEIF.';
+  }
+  if (file.size > HOLERITE_MAX_BYTES) {
+    return 'Arquivo muito grande. O tamanho máximo é 10 MB.';
+  }
+  return null;
 }

@@ -40,12 +40,10 @@ export function novoForm(): InscricaoForm {
 // Resultado da checagem de CPF (na integração, virá do backend:
 // busca de inscrição existente + enriquecimento na base AFSYS).
 export interface CpfCheckResult {
-  found: boolean;             // já existe inscrição para este CPF?
-  status?: string;            // status da inscrição existente (se found)
-  protocolo?: string;         // protocolo existente (se found)
-  // enriquecimento (preenchido pelo backend na fase de integração)
-  nomeAfsys?: string;
-  empresaAfsys?: string;
+  found: boolean;                 // já existe inscrição para este CPF?
+  status?: string;                // status da inscrição existente (dedup no submit)
+  protocolo?: string;             // protocolo existente (se found)
+  dataInscricao?: string | null;  // data da inscrição existente (pode vir null)
 }
 
 export interface SubmitResult {

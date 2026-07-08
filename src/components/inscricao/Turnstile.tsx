@@ -33,12 +33,28 @@ function loadTurnstileScript(): Promise<void> {
 interface Props {
   onVerify: (token: string) => void;
   onExpire?: () => void;
+  // Ao mudar, força um novo desafio (o token do Turnstile é de uso único:
+  // depois de consumido por checar_cpf/submit, é preciso renovar para reenviar).
+  resetKey?: number;
 }
 
 // Renderiza o widget Turnstile e devolve o token via onVerify.
-export function Turnstile({ onVerify, onExpire }: Props) {
+export function Turnstile({ onVerify, onExpire, resetKey }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string | null>(null);
+
+  useEffect(() => {
+    // No mount o widget ainda não existe (render é assíncrono); só renova
+    // quando resetKey muda depois de já haver um widget.
+    if (widgetId.current && window.turnstile) {
+      try {
+        window.turnstile.reset(widgetId.current);
+      } catch {
+        /* noop */
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
 
   useEffect(() => {
     let cancelled = false;
