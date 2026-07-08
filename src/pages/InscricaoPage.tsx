@@ -54,6 +54,12 @@ export function InscricaoPage() {
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [jaInscrito, setJaInscrito] = useState<CpfCheckResult | null>(null);
 
+  // Modo "completar pendência": quando o CPF já tem inscrição incompleta, o
+  // wizard retoma no passo que falta (cnpj → Empresa, holerite → Holerite) e o
+  // submit envia só o que falta (ver services/inscricao.ts).
+  const [completando, setCompletando] = useState<'cnpj' | 'holerite' | null>(null);
+  const [pendProtocolo, setPendProtocolo] = useState('');
+
   // Turnstile: um token para checar_cpf (etapa CPF) e outro para o submit
   // (etapa Revisão). Ambos são de uso único, por isso são independentes.
   const [cpfToken, setCpfToken] = useState('');
@@ -140,8 +146,20 @@ export function InscricaoPage() {
       try {
         const r = await checarCpf(form.cpf, evento!.slug, cpfToken);
         if (r.found) {
+          // Inscrição completa (INSCRITO) → bloqueia.
           setJaInscrito(r);
           setFase('already');
+          window.scrollTo(0, 0);
+          return;
+        }
+        if (r.pendencia === 'cnpj' || r.pendencia === 'holerite') {
+          // Inscrição pendente → retoma direto no passo que falta. O CPF já
+          // está no form; o consentimento LGPD foi dado na inscrição original
+          // (marcamos lgpd=true só por consistência local — não é reenviado).
+          setCompletando(r.pendencia);
+          setPendProtocolo(r.protocolo || '');
+          setForm((f) => ({ ...f, lgpd: true }));
+          setStep(r.pendencia === 'cnpj' ? S.EMPRESA : S.HOLERITE);
           window.scrollTo(0, 0);
           return;
         }
@@ -156,6 +174,13 @@ export function InscricaoPage() {
       return;
     }
 
+    // Completar pendência: preenchido o passo que faltava, vai direto à Revisão
+    // (os demais passos já estão resolvidos na inscrição original).
+    if (completando && (step === S.EMPRESA || step === S.HOLERITE)) {
+      setStep(S.REVISAO);
+      return;
+    }
+
     // Empresa sem CNPJ → pula Holerite, vai direto à Revisão.
     if (step === S.EMPRESA && semCnpj) {
       setStep(S.REVISAO);
@@ -165,6 +190,19 @@ export function InscricaoPage() {
   }
 
   function voltar() {
+    // Modo completar pendência: a Revisão volta ao passo da pendência; do passo
+    // da pendência, volta ao CPF e sai do modo (retoma o fluxo normal).
+    if (completando) {
+      if (step === S.REVISAO) {
+        setStep(completando === 'cnpj' ? S.EMPRESA : S.HOLERITE);
+        return;
+      }
+      setCompletando(null);
+      renovarCpfTurnstile();
+      setStep(S.CPF);
+      return;
+    }
+
     // Da Revisão, se pulou holerite, volta para Empresa.
     if (step === S.REVISAO && semCnpj) {
       setStep(S.EMPRESA);
@@ -194,7 +232,7 @@ export function InscricaoPage() {
     setErroSubmit('');
     setBusy(true);
     try {
-      const r = await submitInscricao(form, evento!, submitToken);
+      const r = await submitInscricao(form, evento!, submitToken, completando);
       if (r.jaInscrito) {
         setJaInscrito({ found: true, protocolo: r.protocolo, status: r.status });
         setFase('already');
@@ -396,6 +434,13 @@ export function InscricaoPage() {
         {step === S.EMPRESA && (
           <div className="wz-step-body">
             <h3 className="wz-step-title">Empresa onde trabalha</h3>
+            {completando === 'cnpj' && (
+              <p className="wz-note">
+                Encontramos sua inscrição
+                {pendProtocolo && <> (protocolo <b>{pendProtocolo}</b>)</>} pendente de
+                CNPJ. Informe o CNPJ para concluir.
+              </p>
+            )}
             <ChoiceField
               label="Você tem o CNPJ da empresa?"
               options={['Sim', 'Não']}
@@ -434,6 +479,13 @@ export function InscricaoPage() {
         {step === S.HOLERITE && (
           <div className="wz-step-body">
             <h3 className="wz-step-title">Holerite</h3>
+            {completando === 'holerite' && (
+              <p className="wz-note">
+                Sua inscrição
+                {pendProtocolo && <> (protocolo <b>{pendProtocolo}</b>)</>} está pendente do
+                holerite. Envie o documento para concluir.
+              </p>
+            )}
             <ChoiceField
               label="Você possui o holerite agora?"
               options={['Sim', 'Não']}
@@ -470,20 +522,43 @@ export function InscricaoPage() {
         {step === S.REVISAO && (
           <div className="wz-step-body">
             <h3 className="wz-step-title">Revisão</h3>
-            <ul className="wz-review">
-              <Item k="CPF" v={form.cpf} />
-              <Item k="Nome" v={form.nomeCompleto} />
-              <Item k="WhatsApp" v={form.whatsapp} />
-              <Item k="Cidade" v={form.cidade} />
-              <Item k="Quer se sindicalizar" v={form.querSindicalizar} />
-              <Item k="Tem CNPJ" v={form.temCnpj} />
-              {form.temCnpj === 'Sim' && <Item k="CNPJ" v={form.cnpj} />}
-              {form.temCnpj === 'Sim' && <Item k="Empresa" v={form.empresaNome} />}
-              {!semCnpj && <Item k="Possui holerite" v={form.possuiHolerite} />}
-              {form.possuiHolerite === 'Sim' && (
-                <Item k="Holerite" v={form.holeriteNome || 'Não anexado (ficará pendente)'} />
-              )}
-            </ul>
+            {completando ? (
+              // Completar pendência: só o CPF (identificação) + o que foi
+              // preenchido agora. O restante já está na inscrição original.
+              <>
+                <p className="wz-note">
+                  Concluindo sua inscrição
+                  {pendProtocolo && <> (protocolo <b>{pendProtocolo}</b>)</>}. Os demais dados
+                  da inscrição original serão mantidos.
+                </p>
+                <ul className="wz-review">
+                  <Item k="CPF" v={form.cpf} />
+                  {completando === 'cnpj' && <Item k="CNPJ" v={form.cnpj} />}
+                  {completando === 'cnpj' && <Item k="Empresa" v={form.empresaNome} />}
+                  {completando === 'holerite' && (
+                    <Item
+                      k="Holerite"
+                      v={form.holeriteNome || 'Não anexado (ficará pendente)'}
+                    />
+                  )}
+                </ul>
+              </>
+            ) : (
+              <ul className="wz-review">
+                <Item k="CPF" v={form.cpf} />
+                <Item k="Nome" v={form.nomeCompleto} />
+                <Item k="WhatsApp" v={form.whatsapp} />
+                <Item k="Cidade" v={form.cidade} />
+                <Item k="Quer se sindicalizar" v={form.querSindicalizar} />
+                <Item k="Tem CNPJ" v={form.temCnpj} />
+                {form.temCnpj === 'Sim' && <Item k="CNPJ" v={form.cnpj} />}
+                {form.temCnpj === 'Sim' && <Item k="Empresa" v={form.empresaNome} />}
+                {!semCnpj && <Item k="Possui holerite" v={form.possuiHolerite} />}
+                {form.possuiHolerite === 'Sim' && (
+                  <Item k="Holerite" v={form.holeriteNome || 'Não anexado (ficará pendente)'} />
+                )}
+              </ul>
+            )}
 
             <div className="wz-verify">
               <span className="wz-label">Verificação de segurança</span>

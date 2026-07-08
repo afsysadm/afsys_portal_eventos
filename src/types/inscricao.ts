@@ -40,9 +40,12 @@ export function novoForm(): InscricaoForm {
 // Resultado da checagem de CPF (na integração, virá do backend:
 // busca de inscrição existente + enriquecimento na base AFSYS).
 export interface CpfCheckResult {
-  found: boolean;                 // já existe inscrição para este CPF?
+  found: boolean;                 // ja_inscrito === true (INSCRITO → bloqueia)
+  pendencia?: 'cnpj' | 'holerite' | null; // inscrição existente porém incompleta
+  passo?: number;                 // passo sugerido pelo backend (1-indexado; não usado na navegação)
+  id?: number;                    // id da inscrição existente
   status?: string;                // status da inscrição existente (dedup no submit)
-  protocolo?: string;             // protocolo existente (se found)
+  protocolo?: string;             // protocolo existente (se found/pendência)
   dataInscricao?: string | null;  // data da inscrição existente (pode vir null)
 }
 

@@ -50,6 +50,9 @@ export async function checarCpf(
   let data: {
     ok?: boolean;
     ja_inscrito?: boolean;
+    pendencia?: 'cnpj' | 'holerite' | null;
+    passo?: number;
+    id?: number;
     protocolo?: string;
     data_inscricao?: string | null;
     error?: string;
@@ -65,6 +68,7 @@ export async function checarCpf(
     throw new Error(data.error || 'checar_falhou');
   }
 
+  // Inscrição completa (INSCRITO) → bloqueia com a tela "já inscrito".
   if (data.ja_inscrito) {
     return {
       found: true,
@@ -72,6 +76,21 @@ export async function checarCpf(
       dataInscricao: data.data_inscricao ?? null,
     };
   }
+
+  // Inscrição existente porém pendente (cnpj/holerite) → retoma o wizard no
+  // passo que falta. A navegação é decidida por `pendencia` (semântica), não
+  // pelo índice `passo` do backend (que é 1-indexado).
+  if (data.pendencia === 'cnpj' || data.pendencia === 'holerite') {
+    return {
+      found: false,
+      pendencia: data.pendencia,
+      passo: data.passo,
+      id: data.id,
+      protocolo: data.protocolo,
+      dataInscricao: data.data_inscricao ?? null,
+    };
+  }
+
   return { found: false };
 }
 
@@ -97,16 +116,38 @@ function montarCampos(form: InscricaoForm): Record<string, string> {
   };
 }
 
+// Payload reduzido para COMPLETAR uma inscrição pendente: envia só o CPF (chave
+// de localização) + os campos do passo que faltava. O backend preserva o resto
+// da inscrição original (nome, whatsapp, cidade, consentimento LGPD etc. ficam
+// blindados no update) e recalcula status/protocolo.
+function montarCamposPendencia(
+  form: InscricaoForm,
+  tipo: 'cnpj' | 'holerite'
+): Record<string, string> {
+  const base: Record<string, string> = { CPF: onlyDigits(form.cpf) };
+  if (tipo === 'cnpj') {
+    base.TRABALHADOR_TEM_CNPJ = form.temCnpj || '';
+    base.CNPJ_TRABALHADOR = form.temCnpj === 'Sim' ? onlyDigits(form.cnpj) : '';
+    base.EMPRESA_NOME = form.temCnpj === 'Sim' ? form.empresaNome.trim() : '';
+  } else {
+    base.POSSUI_HOLERITE = form.possuiHolerite || '';
+    base.ENVIO_HOLERITE = form.holeriteNome || '';
+  }
+  return base;
+}
+
 // Submit final — multipart/form-data. O arquivo do holerite vai no campo `file`
 // e só é anexado quando "Possui holerite? = Sim" E o usuário anexou algo válido.
 // Não definimos Content-Type manualmente: o browser inclui o boundary correto.
+// Quando `completando` é informado, envia o payload mínimo (só o que falta).
 export async function submitInscricao(
   form: InscricaoForm,
   evento: Evento,
-  turnstileToken: string
+  turnstileToken: string,
+  completando?: 'cnpj' | 'holerite' | null
 ): Promise<SubmitResult> {
   const fd = new FormData();
-  const campos = montarCampos(form);
+  const campos = completando ? montarCamposPendencia(form, completando) : montarCampos(form);
   for (const [k, v] of Object.entries(campos)) fd.append(k, v);
 
   fd.append('turnstile_token', turnstileToken);
