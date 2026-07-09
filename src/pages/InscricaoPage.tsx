@@ -24,7 +24,9 @@ type Fase = 'form' | 'declined' | 'already' | 'success';
 type Errors = Record<string, string>;
 
 // Etapas (CPF PRIMEIRO — antes da LGPD e de qualquer dado).
-const STEPS = ['CPF', 'Consentimento', 'Seus dados', 'Sindicalização', 'Empresa', 'Holerite', 'Revisão'];
+// Rótulos VISÍVEIS das etapas. "Contribuinte" é só o texto exibido — a etapa
+// interna continua sendo S.SINDICAL e o campo do payload é QUER_SE_SINDICALIZAR.
+const STEPS = ['CPF', 'Consentimento', 'Seus dados', 'Contribuinte', 'Empresa', 'Holerite', 'Revisão'];
 const S = { CPF: 0, LGPD: 1, DADOS: 2, SINDICAL: 3, EMPRESA: 4, HOLERITE: 5, REVISAO: 6 };
 
 // Mensagens amigáveis por código de erro do backend.
@@ -272,7 +274,7 @@ export function InscricaoPage() {
   if (fase === 'declined') {
     return (
       <Shell evento={evento}>
-        <div className="wz-card wz-final">
+        <div className="wz-final">
           <div className="wz-final-ico">🤝</div>
           <h2>Tudo bem!</h2>
           <p>
@@ -290,7 +292,7 @@ export function InscricaoPage() {
   if (fase === 'already' && jaInscrito) {
     return (
       <Shell evento={evento}>
-        <div className="wz-card wz-final">
+        <div className="wz-final">
           <div className="wz-final-ico">✅</div>
           <h2>Você já está inscrito</h2>
           <p>Encontramos uma inscrição com este CPF para este evento.</p>
@@ -320,7 +322,7 @@ export function InscricaoPage() {
         : 'Inscrição confirmada! Nos vemos no evento.';
     return (
       <Shell evento={evento}>
-        <div className="wz-card wz-final">
+        <div className="wz-final">
           <div className="wz-final-ico">{pendente ? '📝' : '🎉'}</div>
           <h2>{evento.titulo}</h2>
           {result.protocolo && (
@@ -339,14 +341,21 @@ export function InscricaoPage() {
   return (
     <Shell
       evento={evento}
-      band={
+      aside={
         <>
-          <h1 className="wz-title">Inscrição</h1>
           <Stepper steps={STEPS} current={step} skipped={skipped} />
+          {periodoInscricoes(evento) && (
+            <div className="wz-side-foot">
+              <div className="row">
+                <span className="k">Inscrições</span>
+                <span className="v">{periodoInscricoes(evento)}</span>
+              </div>
+            </div>
+          )}
         </>
       }
     >
-      <div className="wz-card">
+      <div className="wz-panel">
         {step === S.CPF && (
           <div className="wz-step-body">
             <h3 className="wz-step-title">Qual o seu CPF?</h3>
@@ -438,7 +447,7 @@ export function InscricaoPage() {
 
         {step === S.SINDICAL && (
           <div className="wz-step-body">
-            <h3 className="wz-step-title">Sindicalização</h3>
+            <h3 className="wz-step-title">Contribuinte</h3>
             <ChoiceField
               label="Você quer se sindicalizar?"
               options={['Sim', 'Não']}
@@ -625,34 +634,48 @@ export function InscricaoPage() {
   );
 }
 
-// Casca comum: header (nav) → faixa azul (voltar + título/etapa/progresso) →
-// corpo branco (card). `band` preenche a faixa azul; sem ele, mostra só o título.
+// Casca comum: header (nav) → card de duas colunas. A coluna azul (esquerda no
+// desktop / faixa de topo no mobile) traz voltar + "Inscrição" + o `aside`
+// (lista de etapas + info do evento); a coluna branca traz o conteúdo da etapa.
 function Shell({
   children,
   evento,
-  band,
+  aside,
 }: {
   children: ReactNode;
   evento: Evento;
-  band?: ReactNode;
+  aside?: ReactNode;
 }) {
   const navigate = useNavigate();
   return (
     <div className="pg">
       <Nav />
-      <div className="wz-hero">
-        <div className="wrap wrap-narrow">
-          <button className="wz-back" onClick={() => navigate(`/evento/${evento.slug}`)}>
-            ← {evento.titulo}
-          </button>
-          {band ?? <h1 className="wz-title">Inscrição</h1>}
-        </div>
-      </div>
       <div className="wz-main">
-        <div className="wrap wrap-narrow">{children}</div>
+        <div className="wz-shell">
+          <aside className="wz-side">
+            <button className="wz-back" onClick={() => navigate(`/evento/${evento.slug}`)}>
+              ← {evento.titulo}
+            </button>
+            <h1 className="wz-title">Inscrição</h1>
+            {aside}
+          </aside>
+          <div className="wz-content">{children}</div>
+        </div>
       </div>
     </div>
   );
+}
+
+// Período de inscrições para a coluna azul do wizard, com ano nos dois lados
+// (ex.: "01/06 — 31/07" -> "01/06/2026 — 31/07/2026"). O ano é extraído de
+// outra meta do evento (ex.: Prova "13 set 2026"); sem ano, usa o valor cru.
+function periodoInscricoes(evento: Evento): string | null {
+  const insc = evento.metas.find((m) => /inscri/i.test(m.k));
+  if (!insc) return null;
+  const ano = evento.metas.map((m) => m.v).join(' ').match(/\b(20\d{2})\b/)?.[1];
+  if (!ano) return insc.v;
+  // acrescenta /ano a cada "dd/mm" que ainda não tenha ano
+  return insc.v.replace(/(\d{2}\/\d{2})(?!\/)/g, `$1/${ano}`);
 }
 
 function Item({ k, v }: { k: string; v: string }) {

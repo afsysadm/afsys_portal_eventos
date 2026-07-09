@@ -205,26 +205,60 @@ footer{border-top:1px solid var(--line);padding:40px 0 34px;background:var(--bg-
    corpo branco (card) → botões.
    ============================================================ */
 .pg{min-height:100vh;display:flex;flex-direction:column;background:var(--bg-alt)}
+.wz-main{flex:1;padding-bottom:56px}
 
-/* faixa azul do topo do wizard */
-.wz-hero{background:linear-gradient(135deg,var(--brand),var(--brand-dark));color:#fff;padding:14px 0 26px}
-.wz-back{display:inline-flex;align-items:center;gap:8px;background:transparent;border:none;color:rgba(255,255,255,.9);cursor:pointer;font-size:14px;font-weight:600;padding:8px 0;margin:4px 0 14px;transition:.2s}
+/* Container do wizard. Mobile-first: uma coluna (faixa azul no topo + form
+   abaixo, full-bleed). Desktop: card centrado de duas colunas. */
+.wz-shell{width:100%;display:grid;grid-template-columns:1fr;background:var(--surface)}
+
+/* Coluna azul: no mobile é a faixa de topo; no desktop, a coluna esquerda. */
+.wz-side{background:linear-gradient(150deg,var(--brand),var(--brand-dark));color:#fff;padding:14px 22px 22px}
+.wz-back{display:inline-flex;align-items:center;gap:8px;background:transparent;border:none;color:rgba(255,255,255,.9);cursor:pointer;font-size:14px;font-weight:600;padding:8px 0;margin:2px 0 12px;transition:.2s}
 .wz-back:hover{color:#fff}
-.wz-title{font-family:var(--display);font-weight:800;font-size:clamp(24px,4vw,34px);letter-spacing:-.02em}
-.wz-sub{font-size:14px;color:rgba(255,255,255,.85);margin-top:2px}
+.wz-title{font-family:var(--display);font-weight:800;font-size:clamp(24px,4vw,32px);letter-spacing:-.02em}
 
-/* progresso segmentado (linhas finas brancas) */
-.wz-steps{margin-top:16px}
+/* Progresso: barra segmentada horizontal (mobile) */
+.wz-steps{margin-top:14px}
 .wz-progress{display:flex;gap:5px}
 .wz-progress .seg{flex:1;height:4px;border-radius:4px;background:rgba(255,255,255,.28);transition:background .3s}
 .wz-progress .seg.on{background:#fff}
 .wz-progress .seg.skip{background:rgba(255,255,255,.12)}
 .wz-step-meta{font-size:12.5px;font-weight:600;letter-spacing:.02em;color:rgba(255,255,255,.9);margin-top:9px}
 
-/* corpo */
-.wz-main{flex:1;padding:24px 0 60px}
-.wz-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px;box-shadow:var(--shadow)}
-@media(max-width:620px){.wz-card{padding:20px}}
+/* Progresso: lista vertical de etapas (desktop) — escondida no mobile */
+.wz-steplist{display:none;list-style:none;flex-direction:column;gap:2px;margin-top:22px}
+.wz-stepitem{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:10px;color:rgba(255,255,255,.72);font-size:14px;transition:.15s}
+.wz-stepitem .num{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12.5px;font-weight:700;background:rgba(255,255,255,.16);color:#fff;flex-shrink:0}
+.wz-stepitem.done{color:rgba(255,255,255,.92)}
+.wz-stepitem.done .num{background:rgba(255,255,255,.34);color:#fff}
+.wz-stepitem.now{background:rgba(255,255,255,.14);color:#fff;font-weight:600}
+.wz-stepitem.now .num{background:#fff;color:var(--brand-dark)}
+.wz-stepitem.skip{opacity:.45}
+.wz-stepitem.skip .lbl{text-decoration:line-through}
+
+/* Rodapé opcional da coluna azul (data/local do evento) — só desktop */
+.wz-side-foot{display:none;margin-top:24px;padding-top:18px;border-top:1px solid rgba(255,255,255,.18)}
+.wz-side-foot .row{display:flex;flex-direction:column;margin-bottom:12px}
+.wz-side-foot .row:last-child{margin-bottom:0}
+.wz-side-foot .k{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.65)}
+.wz-side-foot .v{font-size:14.5px;font-weight:600;margin-top:2px}
+
+/* Coluna do conteúdo (formulário) */
+.wz-content{padding:22px 22px 26px;background:var(--surface)}
+.wz-panel{width:100%}
+
+/* DESKTOP (≥900px): card centrado de duas colunas */
+@media(min-width:900px){
+  .wz-main{padding:30px 22px 60px}
+  .wz-shell{max-width:960px;margin:0 auto;grid-template-columns:37% 1fr;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+  .wz-side{padding:30px 28px 34px}
+  .wz-content{padding:40px 44px}
+  .wz-steplist{display:flex}
+  .wz-side-foot{display:block}
+  .wz-progress,.wz-step-meta{display:none}
+  .wz-panel{max-width:380px}
+}
+
 .wz-step-title{font-family:var(--display);font-weight:700;font-size:clamp(19px,3vw,23px);letter-spacing:-.01em;margin-bottom:16px;color:var(--ink)}
 .wz-step-q{font-weight:600;margin:16px 0 12px;color:var(--ink)}
 .wz-lgpd{font-size:14.5px;color:var(--muted);line-height:1.65;background:var(--bg-alt);border:1px solid var(--line);border-radius:12px;padding:16px}
@@ -280,7 +314,7 @@ footer{border-top:1px solid var(--line);padding:40px 0 34px;background:var(--bg-
 .wz-confirm .tx{font-size:13.5px;color:var(--brand-dark)}
 
 /* telas finais */
-.wz-final{text-align:center;padding:40px 26px}
+.wz-final{text-align:center;padding:18px 0}
 .wz-final-ico{font-size:50px;margin-bottom:12px}
 .wz-final h2{font-family:var(--display);font-weight:800;font-size:clamp(22px,4vw,30px);letter-spacing:-.02em;margin-bottom:12px;color:var(--ink)}
 .wz-final p{color:var(--muted);max-width:46ch;margin:0 auto 12px}
