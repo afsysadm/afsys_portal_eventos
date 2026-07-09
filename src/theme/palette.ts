@@ -18,10 +18,11 @@ export const EVENT_COLORS: Record<CorEvento, string> = {
 export const THEME_FESTIVAL: SiteTheme = {
   id: 'institucional',
   vars: {
-    // COR DA MARCA — trocar só estas 3 por sindicato
-    '--brand': '#0A5FD4',
-    '--brand-dark': '#0847A8',
-    '--brand-soft': '#EAF3FF',
+    // COR DA MARCA — a fonte da verdade é config/tenants.ts (aplicada em runtime
+    // pelo TenantContext). Mantido aqui só por consistência do tema base.
+    '--brand': '#1B2C8C',
+    '--brand-dark': '#131F63',
+    '--brand-soft': '#EAECF8',
     // superfícies
     '--bg': '#FFFFFF',
     '--surface': '#FFFFFF',
@@ -31,8 +32,8 @@ export const THEME_FESTIVAL: SiteTheme = {
     '--muted': '#5A6475',
     '--dim': '#8A93A3',
     '--line': '#E8EBF0',
-    // tipografia
-    '--display': "'Syne', system-ui, sans-serif",
+    // tipografia (Inter em todo o portal)
+    '--display': "'Inter', system-ui, -apple-system, sans-serif",
     '--ui': "'Inter', system-ui, -apple-system, sans-serif",
   },
 };

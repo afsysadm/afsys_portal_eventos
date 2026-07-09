@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { SiteConfig } from '../types';
 import { getSiteConfig } from '../services/siteConfig';
-import { applyTheme } from '../theme/palette';
 
 const SiteContext = createContext<SiteConfig | null>(null);
 
+// Conteúdo de exibição da agenda (ano, estatísticas). A cor da marca e a
+// identidade do sindicato vêm do TenantContext (config/tenants.ts) — por isso
+// aqui NÃO aplicamos mais tema, para não sobrescrever o --brand do tenant.
 export function SiteProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<SiteConfig | null>(null);
 
@@ -12,7 +14,6 @@ export function SiteProvider({ children }: { children: ReactNode }) {
     let alive = true;
     getSiteConfig().then((cfg) => {
       if (!alive) return;
-      applyTheme(cfg.theme);
       setConfig(cfg);
     });
     return () => {

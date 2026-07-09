@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { TenantProvider } from './context/TenantContext';
 import { SiteProvider } from './context/SiteContext';
 import { ToastProvider } from './context/ToastContext';
 import { HubPage } from './pages/HubPage';
@@ -7,17 +8,19 @@ import { InscricaoPage } from './pages/InscricaoPage';
 
 export default function App() {
   return (
-    <SiteProvider>
-      <ToastProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<HubPage />} />
-            <Route path="/evento/:slug" element={<EventPage />} />
-            <Route path="/evento/:slug/inscricao" element={<InscricaoPage />} />
-            <Route path="*" element={<HubPage />} />
-          </Routes>
-        </BrowserRouter>
-      </ToastProvider>
-    </SiteProvider>
+    <TenantProvider>
+      <SiteProvider>
+        <ToastProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<HubPage />} />
+              <Route path="/evento/:slug" element={<EventPage />} />
+              <Route path="/evento/:slug/inscricao" element={<InscricaoPage />} />
+              <Route path="*" element={<HubPage />} />
+            </Routes>
+          </BrowserRouter>
+        </ToastProvider>
+      </SiteProvider>
+    </TenantProvider>
   );
 }

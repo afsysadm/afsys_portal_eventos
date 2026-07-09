@@ -6,10 +6,12 @@
    um sindicato, basta mudar --brand / --brand-dark / --brand-soft.
    ============================================================ */
 :root{
-  /* COR DA MARCA — trocar só esta por sindicato (tema por tenant) */
-  --brand:      #0A5FD4;   /* azul institucional (base da referência) */
-  --brand-dark: #0847A8;   /* variação escura p/ degradê e texto sobre claro */
-  --brand-soft: #EAF3FF;   /* azul bem claro p/ caixas de destaque/aviso */
+  /* COR DA MARCA — default do tenant padrão (Hoteleiros RP, azul do brasão).
+     Em runtime o TenantContext injeta os valores da config (config/tenants.ts);
+     estes defaults evitam flash antes do JS aplicar o tema. */
+  --brand:      #1B2C8C;   /* azul-marinho/royal do brasão */
+  --brand-dark: #131F63;   /* variação escura p/ degradê e texto sobre claro */
+  --brand-soft: #EAECF8;   /* azul bem claro p/ caixas de destaque/aviso */
 
   /* SUPERFÍCIES */
   --bg:      #FFFFFF;   /* fundo base */
@@ -25,8 +27,9 @@
   /* Acento do evento (default = marca; sobrescrito por card via --ev) */
   --ev: var(--brand);
 
-  /* TIPOGRAFIA */
-  --display:'Syne',system-ui,sans-serif;
+  /* TIPOGRAFIA — Inter em todo o portal; títulos usam pesos 700/800 (a
+     display condensada Syne foi removida a pedido). */
+  --display:'Inter',system-ui,-apple-system,sans-serif;
   --ui:'Inter',system-ui,-apple-system,sans-serif;
 
   /* Sombra suave padrão dos cards */
@@ -48,16 +51,16 @@ button{font-family:inherit}
 .nav{position:sticky;top:0;z-index:60;background:var(--surface);border-bottom:1px solid var(--line)}
 .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
 .brand{display:flex;align-items:center;gap:12px;cursor:pointer;background:none;border:none}
-.brand .mark{width:38px;height:38px;border-radius:11px;background:var(--brand);display:grid;place-items:center;color:#fff;font-family:var(--display);font-weight:800;font-size:19px}
-.brand .txt{display:flex;flex-direction:column;line-height:1.15;text-align:left}
-.brand .txt b{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:-.01em;color:var(--ink)}
+/* Logo circular do sindicato (brasão) sobre fundo claro; fallback = monograma. */
+.brand-logo{border-radius:50%;object-fit:cover;background:#fff;display:block;flex-shrink:0}
+.brand-logo--mono{display:grid;place-items:center;background:var(--brand);color:#fff;font-family:var(--ui);font-weight:800;font-size:15px;letter-spacing:.02em}
+.brand .txt{display:flex;flex-direction:column;line-height:1.2;text-align:left}
+.brand .txt b{font-family:var(--display);font-weight:700;font-size:14.5px;letter-spacing:-.01em;color:var(--ink)}
 .brand .txt span{font-size:11.5px;color:var(--dim);letter-spacing:.01em}
 .nav-links{display:flex;gap:24px;align-items:center}
 .nav-links a{font-size:14px;font-weight:500;color:var(--muted);transition:color .2s}
 .nav-links a:hover{color:var(--brand)}
-.nav-area{font-weight:600;color:var(--brand);border:1.5px solid var(--brand);padding:9px 16px;border-radius:10px;background:transparent;transition:.2s}
-.nav-area:hover{background:var(--brand-soft)}
-@media(max-width:760px){.nav-links a:not(.nav-area){display:none}}
+@media(max-width:760px){.nav-links a{display:none}}
 
 /* ---------- BOTÕES ---------- */
 .btn-solid{display:inline-flex;align-items:center;justify-content:center;gap:10px;font-family:var(--ui);font-weight:600;font-size:15.5px;background:var(--brand);color:#fff;min-height:48px;padding:0 22px;border-radius:11px;border:none;cursor:pointer;transition:background .18s,transform .12s,box-shadow .2s;box-shadow:0 8px 22px -12px var(--brand)}
@@ -137,7 +140,10 @@ button{font-family:inherit}
 
 /* ---------- FOOTER ---------- */
 footer{border-top:1px solid var(--line);padding:40px 0 34px;background:var(--bg-alt);margin-top:44px}
-.foot{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap}
+.foot{display:grid;grid-template-columns:1.6fr 1fr 1.4fr;gap:34px}
+@media(max-width:760px){.foot{grid-template-columns:1fr;gap:26px}}
+.foot-brand{max-width:42ch}
+.foot-legal{font-size:12.5px;color:var(--dim);margin-top:12px;line-height:1.55}
 .foot-col h5{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin-bottom:12px;font-weight:700}
 .foot-col a,.foot-col p{display:block;font-size:14px;color:var(--muted);margin-bottom:6px}
 .foot-col a:hover{color:var(--brand)}
