@@ -103,8 +103,10 @@ button{font-family:inherit}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
 .ev{position:relative;border-radius:14px;overflow:hidden;cursor:pointer;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);transition:transform .2s,box-shadow .25s,border-color .2s;display:flex;flex-direction:column}
 .ev:hover{transform:translateY(-3px);box-shadow:0 10px 30px -14px rgba(26,34,48,.35);border-color:var(--line)}
-.ev .poster{position:relative;min-height:118px;padding:20px;display:flex;align-items:flex-end;background:linear-gradient(135deg,var(--ev),color-mix(in srgb,var(--ev) 62%, #000 22%));overflow:hidden}
-.ev .poster .big{position:relative;font-family:var(--display);font-weight:800;font-size:clamp(22px,3vw,28px);line-height:1;letter-spacing:-.02em;color:#fff;z-index:1;white-space:pre-line}
+/* padding-top reservado p/ a badge (top:14 + ~30 alto + folga) garante que o
+   titulo (ancorado embaixo) nunca encoste na badge nem na borda inferior. */
+.ev .poster{position:relative;min-height:160px;padding:56px 24px 24px;display:flex;align-items:flex-end;background:linear-gradient(135deg,var(--ev),color-mix(in srgb,var(--ev) 62%, #000 22%));overflow:hidden}
+.ev .poster .big{position:relative;font-family:var(--display);font-weight:800;font-size:clamp(22px,3vw,28px);line-height:1.08;letter-spacing:-.02em;color:#fff;z-index:1;white-space:pre-line}
 .ev .poster .ed{position:absolute;top:16px;right:18px;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);z-index:1;text-align:right;max-width:50%}
 .badge-open{position:absolute;top:14px;left:16px;z-index:2;display:inline-flex;align-items:center;gap:7px;background:#fff;color:var(--brand-dark);font-size:11px;font-weight:800;letter-spacing:.03em;padding:6px 11px;border-radius:30px}
 .badge-open .pin{width:7px;height:7px;border-radius:50%;background:#16A34A;animation:pulse 1.6s ease-in-out infinite}
