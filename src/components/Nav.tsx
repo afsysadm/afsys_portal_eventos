@@ -19,7 +19,7 @@ export function Nav() {
           <a href="/#abertas">Abertas</a>
           <a href="/#breve">Em breve</a>
           <a href="/#passados">Realizados</a>
-          <a href="#" className="nav-area">Área do trabalhador</a>
+          <a href="/#eventos" className="nav-area">Área do trabalhador</a>
         </div>
       </div>
     </nav>

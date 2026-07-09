@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { CSSProperties } from 'react';
+import type { ReactNode } from 'react';
 import type { Evento } from '../types';
 import type { InscricaoForm, SubmitResult, CpfCheckResult } from '../types/inscricao';
 import { novoForm } from '../types/inscricao';
 import { getEvento } from '../services/events';
 import { checarCpf, submitInscricao } from '../services/inscricao';
-import { EVENT_COLORS } from '../theme/palette';
 import {
   maskCPF,
   maskCNPJ,
@@ -91,7 +90,7 @@ export function InscricaoPage() {
     return (
       <div>
         <Nav />
-        <div className="wrap" style={{ padding: '80px 26px', color: 'var(--soft)' }}>Carregando…</div>
+        <div className="wrap" style={{ padding: '80px 22px', color: 'var(--muted)' }}>Carregando…</div>
       </div>
     );
   }
@@ -99,16 +98,13 @@ export function InscricaoPage() {
     return (
       <div>
         <Nav />
-        <div className="wrap" style={{ padding: '80px 26px' }}>
-          <h1 style={{ fontFamily: 'var(--display)' }}>Evento não encontrado</h1>
+        <div className="wrap" style={{ padding: '80px 22px' }}>
+          <h1 style={{ fontFamily: 'var(--display)', marginBottom: 16 }}>Evento não encontrado</h1>
           <button className="back" onClick={() => navigate('/')}>← Voltar aos eventos</button>
         </div>
       </div>
     );
   }
-
-  const cor = EVENT_COLORS[evento.cor];
-  const style = { '--ev': cor } as CSSProperties;
 
   // ---- validação por etapa ----
   function validar(): boolean {
@@ -275,7 +271,7 @@ export function InscricaoPage() {
   // ---------- telas de desfecho ----------
   if (fase === 'declined') {
     return (
-      <Shell style={style} evento={evento}>
+      <Shell evento={evento}>
         <div className="wz-card wz-final">
           <div className="wz-final-ico">🤝</div>
           <h2>Tudo bem!</h2>
@@ -283,7 +279,7 @@ export function InscricaoPage() {
             Entendemos sua decisão. Sem o consentimento não podemos seguir com a inscrição, mas você
             pode voltar quando quiser.
           </p>
-          <button className="wz-btn" style={style} onClick={() => navigate(`/evento/${evento.slug}`)}>
+          <button className="wz-btn" onClick={() => navigate(`/evento/${evento.slug}`)}>
             Voltar ao evento
           </button>
         </div>
@@ -293,7 +289,7 @@ export function InscricaoPage() {
 
   if (fase === 'already' && jaInscrito) {
     return (
-      <Shell style={style} evento={evento}>
+      <Shell evento={evento}>
         <div className="wz-card wz-final">
           <div className="wz-final-ico">✅</div>
           <h2>Você já está inscrito</h2>
@@ -305,7 +301,7 @@ export function InscricaoPage() {
             <p className="wz-status-line">Inscrição realizada em {jaInscrito.dataInscricao}.</p>
           )}
           {jaInscrito.status && <p className="wz-status-line">Status: {jaInscrito.status}</p>}
-          <button className="wz-btn" style={style} onClick={() => navigate(`/evento/${evento.slug}`)}>
+          <button className="wz-btn" onClick={() => navigate(`/evento/${evento.slug}`)}>
             Voltar ao evento
           </button>
         </div>
@@ -323,7 +319,7 @@ export function InscricaoPage() {
         ? 'Recebemos seus dados. Sua inscrição ficou com pendência de CNPJ — assim que tiver o CNPJ, é só nos enviar.'
         : 'Inscrição confirmada! Nos vemos no evento.';
     return (
-      <Shell style={style} evento={evento}>
+      <Shell evento={evento}>
         <div className="wz-card wz-final">
           <div className="wz-final-ico">{pendente ? '📝' : '🎉'}</div>
           <h2>{evento.titulo}</h2>
@@ -331,7 +327,7 @@ export function InscricaoPage() {
             <div className="wz-proto">Protocolo: <b>{result.protocolo}</b></div>
           )}
           <p className="wz-status-line">{msg}</p>
-          <button className="wz-btn" style={style} onClick={() => navigate('/')}>
+          <button className="wz-btn" onClick={() => navigate('/')}>
             Concluir
           </button>
         </div>
@@ -341,9 +337,15 @@ export function InscricaoPage() {
 
   // ---------- formulário (etapas) ----------
   return (
-    <Shell style={style} evento={evento}>
-      <Stepper steps={STEPS} current={step} skipped={skipped} />
-
+    <Shell
+      evento={evento}
+      band={
+        <>
+          <h1 className="wz-title">Inscrição</h1>
+          <Stepper steps={STEPS} current={step} skipped={skipped} />
+        </>
+      }
+    >
       <div className="wz-card">
         {step === S.CPF && (
           <div className="wz-step-body">
@@ -391,7 +393,6 @@ export function InscricaoPage() {
               <button
                 type="button"
                 className="wz-choice on-cta"
-                style={style}
                 onClick={() => {
                   set('lgpd', true);
                   setStep(S.DADOS);
@@ -603,16 +604,14 @@ export function InscricaoPage() {
             {step < S.REVISAO ? (
               <button
                 className="wz-btn"
-                style={style}
                 onClick={avancar}
                 disabled={busy || (step === S.CPF && !cpfToken)}
               >
-                {busy ? 'Aguarde…' : 'Avançar →'}
+                {busy ? 'Aguarde…' : <>Avançar <span className="arr">→</span></>}
               </button>
             ) : (
               <button
                 className="wz-btn"
-                style={style}
                 onClick={enviar}
                 disabled={busy || !submitToken}
               >
@@ -626,29 +625,31 @@ export function InscricaoPage() {
   );
 }
 
-// Casca comum (nav + hero do evento + container do wizard)
+// Casca comum: header (nav) → faixa azul (voltar + título/etapa/progresso) →
+// corpo branco (card). `band` preenche a faixa azul; sem ele, mostra só o título.
 function Shell({
   children,
-  style,
   evento,
+  band,
 }: {
-  children: React.ReactNode;
-  style: CSSProperties;
+  children: ReactNode;
   evento: Evento;
+  band?: ReactNode;
 }) {
   const navigate = useNavigate();
   return (
-    <div>
+    <div className="pg">
       <Nav />
-      <div className="wz-wrap" style={style}>
-        <div className="wz-glow" />
-        <div className="wrap">
-          <button className="back" onClick={() => navigate(`/evento/${evento.slug}`)}>
+      <div className="wz-hero">
+        <div className="wrap wrap-narrow">
+          <button className="wz-back" onClick={() => navigate(`/evento/${evento.slug}`)}>
             ← {evento.titulo}
           </button>
-          <h1 className="wz-title">Inscrição</h1>
-          {children}
+          {band ?? <h1 className="wz-title">Inscrição</h1>}
         </div>
+      </div>
+      <div className="wz-main">
+        <div className="wrap wrap-narrow">{children}</div>
       </div>
     </div>
   );

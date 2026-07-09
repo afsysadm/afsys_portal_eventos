@@ -24,7 +24,7 @@ export function EventPage() {
     return (
       <div>
         <Nav />
-        <div className="wrap" style={{ padding: '80px 26px', color: 'var(--soft)' }}>Carregando…</div>
+        <div className="wrap" style={{ padding: '80px 22px', color: 'var(--muted)' }}>Carregando…</div>
       </div>
     );
   }

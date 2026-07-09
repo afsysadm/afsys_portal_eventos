@@ -4,27 +4,23 @@ interface StepperProps {
   skipped?: number[];     // índices pulados (ex.: holerite quando sem CNPJ)
 }
 
+// Progresso da inscrição exibido dentro da faixa azul: barra segmentada
+// (linhas finas brancas — preenchidas = branco sólido, vazias/puladas =
+// branco translúcido) + rótulo "Etapa N de T · Nome".
 export function Stepper({ steps, current, skipped = [] }: StepperProps) {
   const total = steps.length;
-  const pct = Math.round(((current) / (total - 1)) * 100);
 
   return (
     <div className="wz-steps" aria-label="Progresso da inscrição">
       <div className="wz-progress">
-        <div className="wz-progress-bar" style={{ width: `${pct}%` }} />
-      </div>
-      <ol className="wz-steplist">
         {steps.map((s, i) => {
-          const state =
-            skipped.includes(i) ? 'skip' : i < current ? 'done' : i === current ? 'now' : 'todo';
-          return (
-            <li key={s} className={`wz-stepitem ${state}`}>
-              <span className="dot">{i < current && !skipped.includes(i) ? '✓' : i + 1}</span>
-              <span className="lbl">{s}</span>
-            </li>
-          );
+          const cls = skipped.includes(i) ? 'skip' : i <= current ? 'on' : '';
+          return <span key={s} className={`seg ${cls}`} />;
         })}
-      </ol>
+      </div>
+      <div className="wz-step-meta">
+        Etapa {current + 1} de {total} · {steps[current]}
+      </div>
     </div>
   );
 }

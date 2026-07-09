@@ -1,41 +1,36 @@
 import type { CorEvento, SiteTheme } from '../types';
 
-// Cor real (hex) de cada cor neon de evento.
-// Mantida fixa (paleta da plataforma) para coerência visual entre clientes.
+// Cor de acento de cada evento (faixa superior do card + realces).
+// Tons saturados que mantêm bom contraste com texto branco sobre a faixa,
+// coerentes com a identidade institucional azul.
 export const EVENT_COLORS: Record<CorEvento, string> = {
-  lime: '#A3E635',
-  cyan: '#27D3EE',
-  amber: '#FBBF24',
-  magenta: '#FF2E7E',
-  violet: '#A855F7',
-  emerald: '#34E0A1',
+  lime: '#2E9E5B',    // verde
+  cyan: '#0E9AAE',    // teal
+  amber: '#C67C0A',   // âmbar
+  magenta: '#C2317A', // rosa
+  violet: '#6D4AC0',  // roxo
+  emerald: '#0A5FD4', // azul (marca)
 };
 
-// Tema padrão "Festival" (o visual aprovado).
-// Para um novo cliente, basta criar outro SiteTheme alterando estas variáveis
-// (cores de fundo, cor primária/secundária dos CTAs e tipografia) — a estrutura
-// e os componentes permanecem os mesmos.
+// Tema institucional padrão (claro/azul). Para um novo cliente, basta trocar
+// --brand / --brand-dark / --brand-soft por SiteTheme — a estrutura e os
+// componentes permanecem os mesmos (tema por tenant).
 export const THEME_FESTIVAL: SiteTheme = {
-  id: 'festival',
+  id: 'institucional',
   vars: {
-    '--bg': '#120A1F',
-    '--bg2': '#0A0613',
-    '--text': '#F7F3FF',
-    '--soft': '#C2B6DD',
-    '--dim': '#897DA8',
-    '--line': 'rgba(255,255,255,.12)',
-    '--glass': 'rgba(255,255,255,.045)',
-    '--glass-2': 'rgba(255,255,255,.08)',
-    // cores de acento da plataforma (também usadas pelos eventos)
-    '--magenta': '#FF2E7E',
-    '--violet': '#A855F7',
-    '--cyan': '#27D3EE',
-    '--amber': '#FBBF24',
-    '--lime': '#A3E635',
-    '--emerald': '#34E0A1',
-    // cor primária dos CTAs (degradê) — derivada das de acento
-    '--cta-from': '#FF2E7E',
-    '--cta-to': '#A855F7',
+    // COR DA MARCA — trocar só estas 3 por sindicato
+    '--brand': '#0A5FD4',
+    '--brand-dark': '#0847A8',
+    '--brand-soft': '#EAF3FF',
+    // superfícies
+    '--bg': '#FFFFFF',
+    '--surface': '#FFFFFF',
+    '--bg-alt': '#F2F5F9',
+    // texto
+    '--ink': '#1A2230',
+    '--muted': '#5A6475',
+    '--dim': '#8A93A3',
+    '--line': '#E8EBF0',
     // tipografia
     '--display': "'Syne', system-ui, sans-serif",
     '--ui': "'Inter', system-ui, -apple-system, sans-serif",
