@@ -22,8 +22,8 @@ export const MOCK_EVENTOS: Evento[] = [
     status: 'aberto',
     cor: 'lime',
     metas: [
-      { k: 'Inscrições', v: '01/06 — 31/07' },
-      { k: 'Prova', v: '13 set 2026', ph: true },
+      { k: 'Inscrições', v: '01/06 — 05/08' },
+      { k: 'Prova', v: '10 ago 2026' },
       { k: 'Local', v: 'Ribeirão Preto', ph: true },
     ],
     goLabel: 'Ver e inscrever-se',
@@ -35,11 +35,11 @@ export const MOCK_EVENTOS: Evento[] = [
         'Mais que uma prova esportiva, é um dia de confraternização da categoria, aberto a profissionais de hotéis, bares e restaurantes de toda a região.',
       ],
       resumo: [
-        { k: 'Inscrições', v: '01/06 – 31/07' },
-        { k: 'Prova', v: '13 set 2026', ph: true },
+        { k: 'Inscrições', v: '01/06 – 05/08' },
+        { k: 'Prova', v: '10 ago 2026' },
         { k: 'Local', v: 'Ribeirão Preto', ph: true },
         { k: 'Categorias', v: 'Masc · Fem · Equipes' },
-        { k: 'Valor', v: 'A definir', ph: true },
+        { k: 'Valor', v: 'Gratuito' },
       ],
       passos: [
         { titulo: 'Seus dados', desc: 'Nome e CPF.' },
