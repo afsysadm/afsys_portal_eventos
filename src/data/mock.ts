@@ -35,7 +35,7 @@ export const MOCK_EVENTOS: Evento[] = [
         'Mais que uma prova esportiva, é um dia de confraternização da categoria, aberto a profissionais de hotéis, bares e restaurantes de toda a região.',
       ],
       resumo: [
-        { k: 'Inscrições', v: '01/06 – 05/08' },
+        { k: 'Inscrições', v: '01/06 — 05/08' },
         { k: 'Prova', v: '10 ago 2026' },
         { k: 'Local', v: 'Ribeirão Preto', ph: true },
         { k: 'Categorias', v: 'Masc · Fem · Equipes' },
