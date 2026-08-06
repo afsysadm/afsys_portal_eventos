@@ -54,6 +54,9 @@ export function EventCard({ evento, inscricoesAbertas = true }: Props) {
         {prazoEncerrado && <span className="badge-soft">Inscrições encerradas</span>}
         {evento.status === 'em_breve' && <span className="badge-soft">Em breve</span>}
         {encerrado && <span className="badge-soft">Encerrado</span>}
+        {evento.icone === 'natal' && (
+          <span className="poster-ico" aria-hidden="true"><IconGorroNatal /></span>
+        )}
         <div className="big">{evento.tituloPoster ?? evento.titulo}</div>
         {evento.edicao && <span className="ed">{evento.edicao}</span>}
       </div>
@@ -82,6 +85,20 @@ export function EventCard({ evento, inscricoesAbertas = true }: Props) {
         )}
       </div>
     </article>
+  );
+}
+
+// Gorro de Papai Noel — decoração do pôster do evento de Natal.
+// Silhueta própria, montada com três formas: o corpo do gorro (cone tombado
+// para a direita), o pompom (círculo na ponta) e a aba (retângulo arredondado).
+// Preenchimento em creme, herdado do wrapper .poster-ico via currentColor.
+function IconGorroNatal() {
+  return (
+    <svg width="42" height="42" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M3.6 16C4.4 10 10 6.2 18.4 6c.5 3.5 0 7-1.2 10Z" />
+      <circle cx="19.6" cy="4.8" r="2.3" />
+      <rect x="2.2" y="15" width="17" height="4.2" rx="2.1" />
+    </svg>
   );
 }
 

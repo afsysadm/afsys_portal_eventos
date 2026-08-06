@@ -50,31 +50,16 @@ export const MOCK_EVENTOS: Evento[] = [
     },
   },
   {
-    id: 2,
-    slug: 'dia-dos-pais',
-    titulo: 'Dia dos Pais',
-    tituloPoster: 'Dia dos\nPais',
-    kicker: 'Comemorativo',
-    descricao:
-      'Ação especial para os pais da categoria. Abertura das inscrições em breve.',
-    status: 'em_breve',
-    cor: 'cyan',
-    metas: [
-      { k: 'Inscrições', v: 'A definir', ph: true },
-      { k: 'Previsão', v: 'Agosto', ph: true },
-    ],
-    goLabel: 'Aguarde a abertura',
-  },
-  {
     id: 3,
-    slug: 'sorteio-anual',
-    titulo: 'Sorteio Anual',
-    tituloPoster: 'Sorteio\nAnual',
+    slug: 'show-de-premios-natal',
+    titulo: 'Show de Prêmios de Natal',
+    tituloPoster: 'Show de\nPrêmios\nde Natal',
     kicker: 'Benefício do associado',
     descricao:
-      'O sorteio de fim de ano para os associados em dia. Detalhes a divulgar.',
+      'O sorteio de Natal para os associados em dia. Prêmios e datas a divulgar.',
     status: 'em_breve',
-    cor: 'amber',
+    cor: 'red',
+    icone: 'natal',
     metas: [
       { k: 'Inscrições', v: 'A definir', ph: true },
       { k: 'Previsão', v: 'Dezembro', ph: true },
@@ -111,7 +96,7 @@ export const MOCK_SITE_CONFIG: SiteConfig = {
     whatsapp: 'Contato / WhatsApp',
   },
   stats: [
-    { n: '4', l: 'eventos em 2026' },
+    { n: '3', l: 'eventos em 2026' },
     { n: '1', l: 'com inscrição aberta' },
     { n: '+1,5 mil', l: 'trabalhadores na base', ph: true },
     { n: '100%', l: 'inscrição online' },

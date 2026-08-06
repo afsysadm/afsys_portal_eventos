@@ -5,7 +5,10 @@
 export type StatusEvento = 'aberto' | 'em_breve' | 'encerrado';
 
 // Paleta neon usada por cada evento (mapeada para cor real em theme/palette.ts).
-export type CorEvento = 'lime' | 'cyan' | 'amber' | 'magenta' | 'violet' | 'emerald';
+export type CorEvento = 'lime' | 'cyan' | 'amber' | 'magenta' | 'violet' | 'emerald' | 'red';
+
+// Ilustração decorativa opcional no pôster do card (só alguns eventos usam).
+export type IconeEvento = 'natal';
 
 export interface MetaItem {
   k: string;        // rótulo (ex.: "Inscrições")
@@ -35,6 +38,7 @@ export interface Evento {
   descricao: string;
   status: StatusEvento;
   cor: CorEvento;
+  icone?: IconeEvento;     // ilustração decorativa no pôster (opcional)
   metas: MetaItem[];       // 2 a 3 infos exibidas no card
   goLabel?: string;        // texto do botão/ação no card
   detalhe?: EventoDetalhe; // presente quando há página de detalhe + inscrição

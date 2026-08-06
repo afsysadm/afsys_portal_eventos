@@ -8,6 +8,7 @@ export const EVENT_COLORS: Record<CorEvento, string> = {
   cyan: '#0E9AAE',    // teal
   amber: '#C67C0A',   // âmbar
   magenta: '#C2317A', // rosa
+  red: '#C62828',     // vermelho (natalino)
   violet: '#6D4AC0',  // roxo
   emerald: '#0A5FD4', // azul (marca)
 };

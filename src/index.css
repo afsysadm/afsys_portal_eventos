@@ -108,6 +108,8 @@ button{font-family:inherit}
 .ev .poster{position:relative;min-height:160px;padding:56px 24px 24px;display:flex;align-items:flex-end;background:linear-gradient(135deg,var(--ev),color-mix(in srgb,var(--ev) 62%, #000 22%));overflow:hidden}
 .ev .poster .big{position:relative;font-family:var(--display);font-weight:800;font-size:clamp(22px,3vw,28px);line-height:1.08;letter-spacing:-.02em;color:#fff;z-index:1;white-space:pre-line}
 .ev .poster .ed{position:absolute;top:16px;right:18px;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);z-index:1;text-align:right;max-width:50%}
+/* decoração opcional do pôster (canto oposto à badge), discreta e sem clique */
+.ev .poster .poster-ico{position:absolute;top:12px;right:14px;z-index:1;display:inline-flex;color:#FFF3E2;opacity:.5;pointer-events:none}
 .badge-open{position:absolute;top:14px;left:16px;z-index:2;display:inline-flex;align-items:center;gap:7px;background:#fff;color:var(--brand-dark);font-size:11px;font-weight:800;letter-spacing:.03em;padding:6px 11px;border-radius:30px}
 .badge-open .pin{width:7px;height:7px;border-radius:50%;background:#16A34A;animation:pulse 1.6s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
