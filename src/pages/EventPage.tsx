@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
 import type { Evento } from '../types';
 import { getEvento } from '../services/events';
+import { inscricoesAbertas } from '../services/statusPortal';
 import { EVENT_COLORS } from '../theme/palette';
 import { useReveal } from '../hooks/useReveal';
 import { Nav } from '../components/Nav';
@@ -11,16 +12,28 @@ export function EventPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [evento, setEvento] = useState<Evento | null | undefined>(undefined);
+  // null = ainda carregando (evita o botão "piscar" entre habilitado/desabilitado)
+  const [aberto, setAberto] = useState<boolean | null>(null);
   const ref = useReveal<HTMLDivElement>([evento]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
     if (!slug) return;
-    getEvento(slug).then(setEvento);
+    let ativo = true;
+    // Evento (mock) e janela de inscrições (backend) resolvem juntos: a página
+    // só aparece com o estado final do botão.
+    Promise.all([getEvento(slug), inscricoesAbertas(slug)]).then(([ev, ok]) => {
+      if (!ativo) return;
+      setEvento(ev);
+      setAberto(ok);
+    });
+    return () => {
+      ativo = false;
+    };
   }, [slug]);
 
   // Carregando
-  if (evento === undefined) {
+  if (evento === undefined || aberto === null) {
     return (
       <div>
         <Nav />
@@ -48,6 +61,7 @@ export function EventPage() {
   const slugAtual = evento.slug;
 
   function inscrever() {
+    if (!aberto) return;
     navigate(`/evento/${slugAtual}/inscricao`);
   }
 
@@ -60,7 +74,11 @@ export function EventPage() {
         <div className="wrap">
           <button className="back" onClick={() => navigate('/')}>← Voltar aos eventos</button>
           <div>
-            <span className="ev-tag"><span className="pin" />Inscrições abertas</span>
+            {aberto ? (
+              <span className="ev-tag"><span className="pin" />Inscrições abertas</span>
+            ) : (
+              <span className="ev-tag off">Inscrições encerradas</span>
+            )}
           </div>
           <h1>{evento.tituloPoster ?? evento.titulo}</h1>
           {det && <p className="lead">{det.lead}</p>}
@@ -104,8 +122,14 @@ export function EventPage() {
                   <span className={'v' + (m.ph ? ' ph' : '')}>{m.v}</span>
                 </div>
               ))}
-              <button className="btn" onClick={inscrever}>Inscreva-se →</button>
-              <p className="hint">Inscrição online · protocolo na hora</p>
+              <button className="btn" onClick={inscrever} disabled={!aberto}>
+                {aberto ? 'Inscreva-se →' : 'Inscrições encerradas'}
+              </button>
+              <p className="hint">
+                {aberto
+                  ? 'Inscrição online · protocolo na hora'
+                  : 'O prazo de inscrição deste evento terminou.'}
+              </p>
             </aside>
           </div>
         </div>

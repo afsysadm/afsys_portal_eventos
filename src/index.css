@@ -161,6 +161,7 @@ footer{border-top:1px solid var(--line);padding:40px 0 34px;background:var(--bg-
 .ev-hero .back:hover{color:#fff}
 .ev-tag{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);color:#fff;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:7px 14px;border-radius:30px;margin-bottom:18px}
 .ev-tag .pin{width:7px;height:7px;border-radius:50%;background:#fff;animation:pulse 1.6s ease-in-out infinite}
+.ev-tag.off{background:rgba(255,255,255,.1);color:rgba(255,255,255,.75)}
 .ev-hero h1{font-family:var(--display);font-weight:800;font-size:clamp(32px,6vw,60px);line-height:1;letter-spacing:-.02em;margin-bottom:14px;white-space:pre-line}
 .ev-hero .lead{font-size:17px;color:rgba(255,255,255,.9);max-width:52ch}
 .ev-meta{display:flex;gap:30px;flex-wrap:wrap;margin-top:26px}
@@ -186,7 +187,8 @@ footer{border-top:1px solid var(--line);padding:40px 0 34px;background:var(--bg-
 .infobox .row .v{font-size:14px;font-weight:700;color:var(--ink)}
 .infobox .row .v.ph{border-bottom:1px dashed var(--line)}
 .infobox .btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;background:var(--brand);color:#fff;border:none;cursor:pointer;font-weight:600;font-size:15.5px;min-height:48px;padding:0 18px;border-radius:11px;margin-top:18px;transition:background .18s}
-.infobox .btn:hover{background:var(--brand-dark)}
+.infobox .btn:hover:not(:disabled){background:var(--brand-dark)}
+.infobox .btn:disabled{background:var(--line);color:var(--dim);cursor:default;box-shadow:none}
 .infobox .hint{text-align:center;font-size:12.5px;color:var(--dim);margin-top:11px}
 
 /* ---------- UTIL ---------- */

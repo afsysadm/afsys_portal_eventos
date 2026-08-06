@@ -5,6 +5,7 @@ import type { Evento } from '../types';
 import type { InscricaoForm, SubmitResult, CpfCheckResult } from '../types/inscricao';
 import { novoForm } from '../types/inscricao';
 import { getEvento } from '../services/events';
+import { inscricoesAbertas } from '../services/statusPortal';
 import { checarCpf, submitInscricao } from '../services/inscricao';
 import {
   maskCPF,
@@ -47,6 +48,8 @@ export function InscricaoPage() {
   const navigate = useNavigate();
 
   const [evento, setEvento] = useState<Evento | null | undefined>(undefined);
+  // Janela de inscrições (status_portal do backend); null = ainda carregando.
+  const [aberto, setAberto] = useState<boolean | null>(null);
   const [step, setStep] = useState(S.CPF);
   const [form, setForm] = useState<InscricaoForm>(novoForm());
   const [errors, setErrors] = useState<Errors>({});
@@ -72,7 +75,16 @@ export function InscricaoPage() {
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    if (slug) getEvento(slug).then(setEvento);
+    if (!slug) return;
+    let ativo = true;
+    Promise.all([getEvento(slug), inscricoesAbertas(slug)]).then(([ev, ok]) => {
+      if (!ativo) return;
+      setEvento(ev);
+      setAberto(ok);
+    });
+    return () => {
+      ativo = false;
+    };
   }, [slug]);
 
   const semCnpj = form.temCnpj === 'Não';
@@ -88,7 +100,7 @@ export function InscricaoPage() {
     setCpfResetKey((k) => k + 1);
   }
 
-  if (evento === undefined) {
+  if (evento === undefined || aberto === null) {
     return (
       <div>
         <Nav />
@@ -105,6 +117,26 @@ export function InscricaoPage() {
           <button className="back" onClick={() => navigate('/')}>← Voltar aos eventos</button>
         </div>
       </div>
+    );
+  }
+
+  // Acesso direto à URL do wizard com as inscrições fora do prazo: mostra o
+  // desfecho no lugar do formulário (o backend também recusaria o submit).
+  if (!aberto) {
+    return (
+      <Shell evento={evento}>
+        <div className="wz-final">
+          <div className="wz-final-ico">⏳</div>
+          <h2>Inscrições encerradas</h2>
+          <p>
+            O prazo de inscrição deste evento terminou. Acompanhe o portal para as próximas
+            oportunidades.
+          </p>
+          <button className="wz-btn" onClick={() => navigate(`/evento/${evento.slug}`)}>
+            Voltar ao evento
+          </button>
+        </div>
+      </Shell>
     );
   }
 

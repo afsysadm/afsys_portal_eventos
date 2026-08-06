@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Evento } from '../types';
 import { getEventos, agruparPorStatus } from '../services/events';
+import { getStatusPortal, permiteInscricao } from '../services/statusPortal';
+import type { StatusPortalMap } from '../services/statusPortal';
 import { useSite } from '../context/SiteContext';
 import { useReveal } from '../hooks/useReveal';
 import { Nav } from '../components/Nav';
@@ -25,11 +27,22 @@ const HASH_TAB: Record<string, TabKey> = {
 export function HubPage() {
   const site = useSite();
   const [eventos, setEventos] = useState<Evento[] | null>(null);
+  const [statusPortal, setStatusPortal] = useState<StatusPortalMap>({});
   const [tab, setTab] = useState<TabKey>(() => HASH_TAB[window.location.hash] ?? 'aberto');
   const ref = useReveal<HTMLDivElement>([eventos, tab]);
 
+  // Eventos (mock) + janela de inscrições (backend) chegam juntos, para os
+  // cards já nascerem com o call-to-action correto (sem piscar).
   useEffect(() => {
-    getEventos().then(setEventos);
+    let ativo = true;
+    Promise.all([getEventos(), getStatusPortal()]).then(([lista, mapa]) => {
+      if (!ativo) return;
+      setStatusPortal(mapa);
+      setEventos(lista);
+    });
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   // Links de nav/rodapé (#abertas/#breve/#passados) trocam a aba e rolam até
@@ -101,7 +114,11 @@ export function HubPage() {
             ativos.length > 0 ? (
               <div className="cards">
                 {ativos.map((ev) => (
-                  <EventCard key={ev.id} evento={ev} />
+                  <EventCard
+                    key={ev.id}
+                    evento={ev}
+                    inscricoesAbertas={permiteInscricao(statusPortal, ev.slug)}
+                  />
                 ))}
               </div>
             ) : (

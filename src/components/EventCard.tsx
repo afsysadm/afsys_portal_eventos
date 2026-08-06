@@ -6,6 +6,9 @@ import { useToast } from '../context/ToastContext';
 
 interface Props {
   evento: Evento;
+  // Janela de inscrições segundo o backend (status_portal). O pai resolve o
+  // status uma única vez e repassa — nada de fetch por card.
+  inscricoesAbertas?: boolean;
 }
 
 // Ícone escolhido pelo rótulo da meta: local → pino de mapa; datas → calendário.
@@ -14,17 +17,22 @@ function MetaIcon({ label }: { label: string }) {
   return isLocal ? <IconMapPin /> : <IconCalendar />;
 }
 
-export function EventCard({ evento }: Props) {
+export function EventCard({ evento, inscricoesAbertas = true }: Props) {
   const navigate = useNavigate();
   const toast = useToast();
   const cor = EVENT_COLORS[evento.cor];
   const style = { '--ev': cor } as CSSProperties;
 
-  const aberto = evento.status === 'aberto';
+  const temPagina = evento.status === 'aberto';
   const encerrado = evento.status === 'encerrado';
+  // Evento com página, mas fora da janela de inscrições (status_portal != aberto).
+  const prazoEncerrado = temPagina && !inscricoesAbertas;
+  const aberto = temPagina && inscricoesAbertas;
 
   function handleClick() {
-    if (aberto) {
+    // Mesmo com o prazo encerrado o usuário continua podendo ver os detalhes
+    // do evento — o que muda é o call-to-action.
+    if (temPagina) {
       navigate(`/evento/${evento.slug}`);
     } else if (encerrado) {
       toast('Este evento já foi realizado. Inscrições encerradas.');
@@ -43,6 +51,7 @@ export function EventCard({ evento }: Props) {
         {aberto && (
           <span className="badge-open"><span className="pin" />Inscrições abertas</span>
         )}
+        {prazoEncerrado && <span className="badge-soft">Inscrições encerradas</span>}
         {evento.status === 'em_breve' && <span className="badge-soft">Em breve</span>}
         {encerrado && <span className="badge-soft">Encerrado</span>}
         <div className="big">{evento.tituloPoster ?? evento.titulo}</div>
@@ -66,6 +75,8 @@ export function EventCard({ evento }: Props) {
               {evento.goLabel ?? 'Fazer inscrição'} <span className="arr">→</span>
             </span>
           </span>
+        ) : prazoEncerrado ? (
+          <span className="go muted">Inscrições encerradas</span>
         ) : (
           <span className="go muted">{evento.goLabel}</span>
         )}
