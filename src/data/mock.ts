@@ -97,7 +97,7 @@ export const MOCK_SITE_CONFIG: SiteConfig = {
   },
   stats: [
     { n: '3', l: 'eventos em 2026' },
-    { n: '1', l: 'com inscrição aberta' },
+    { n: '0', l: 'com inscrição aberta' },
     { n: '+1,5 mil', l: 'trabalhadores na base', ph: true },
     { n: '100%', l: 'inscrição online' },
   ],
