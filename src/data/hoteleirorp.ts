@@ -18,14 +18,15 @@ export const EVENTOS: Evento[] = [
     edicao: '4ª edição · Corrida de garçons',
     descricao:
       'A corrida de quem equilibra pressa e precisão todos os dias. Bandeja na mão — e que vença quem chega primeiro sem derramar.',
-    status: 'aberto',
+    // Prova realizada em 10/08/2026 — o evento vive na aba "Realizados".
+    status: 'encerrado',
     cor: 'lime',
     metas: [
       { k: 'Inscrições', v: '01/06 — 05/08' },
       { k: 'Prova', v: '10 ago 2026' },
       { k: 'Local', v: 'Ribeirão Preto', ph: true },
     ],
-    goLabel: 'Ver e inscrever-se',
+    goLabel: 'Inscrições encerradas',
     detalhe: {
       lead:
         'A corrida de quem equilibra pressa e precisão todos os dias — bandeja na mão, cidade aos pés.',
