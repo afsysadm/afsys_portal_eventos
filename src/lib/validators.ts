@@ -79,6 +79,13 @@ export function isValidPhone(value: string): boolean {
   return d.length === 10 || d.length === 11;
 }
 
+// Checagem de formato apenas para UX (o servidor revalida). Deliberadamente
+// permissiva: e-mails válidos e incomuns não devem ser recusados aqui.
+export function isValidEmail(value: string): boolean {
+  const v = (value || '').trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+}
+
 // ----- Holerite -----
 // Validação apenas de UX: o servidor revalida extensão, tamanho e o MIME real
 // (via finfo). HEIC/HEIF costumam chegar com type vazio ou octet-stream, por

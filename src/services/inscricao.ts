@@ -5,6 +5,7 @@ import type {
   SubmitResult,
   StatusInscricao,
 } from '../types/inscricao';
+import { MAX_CRIANCAS } from '../types/inscricao';
 import { onlyDigits } from '../lib/validators';
 import { apiBase } from '../config';
 
@@ -109,6 +110,8 @@ function montarCampos(form: InscricaoForm): Record<string, string> {
     EMPRESA_NOME: form.temCnpj === 'Sim' ? form.empresaNome.trim() : '',
     TRABALHADOR_CIDADE: form.cidade.trim(),
     WHATSAPP: onlyDigits(form.whatsapp),
+    EMAIL: form.email.trim(),
+    CONTATO_PREFERIDO: form.contatoPreferido,
     POSSUI_HOLERITE: form.possuiHolerite || '',
     ENVIO_HOLERITE: form.holeriteNome || '',
     STATUS: calcularStatus(form),
@@ -141,6 +144,20 @@ function montarCamposPendencia(
   return base;
 }
 
+// Crianças prontas para o payload: só as completas, com os rótulos exatos que a
+// validação server-side espera, e no máximo MAX_CRIANCAS (o backend recusa mais
+// que isso com `criancas_invalidas`).
+function montarCriancas(form: InscricaoForm): { nome: string; vinculo: string; faixa_etaria: string }[] {
+  return form.criancas
+    .filter((c) => c.nome.trim() !== '' && c.vinculo !== '' && c.faixaEtaria !== '')
+    .slice(0, MAX_CRIANCAS)
+    .map((c) => ({
+      nome: c.nome.trim(),
+      vinculo: c.vinculo,
+      faixa_etaria: c.faixaEtaria,
+    }));
+}
+
 // Submit final — multipart/form-data. O arquivo do holerite vai no campo `file`
 // e só é anexado quando "Possui holerite? = Sim" E o usuário anexou algo válido.
 // Não definimos Content-Type manualmente: o browser inclui o boundary correto.
@@ -157,6 +174,17 @@ export async function submitInscricao(
 
   fd.append('turnstile_token', turnstileToken);
   fd.append('website', ''); // honeypot — deve permanecer SEMPRE vazio
+
+  // CRIANCAS só existe nos eventos que pedem crianças. Vai como JSON em um
+  // campo do multipart (o corpo é multipart por causa do arquivo do holerite,
+  // então o array não caberia em campos soltos). Omitida a chave, o backend
+  // ignora — é assim que os demais eventos seguem com o payload de sempre.
+  // Em modo "completar pendência" nada disso é reenviado: o backend preserva
+  // os dados da inscrição original.
+  if (!completando && evento.pedeCriancas) {
+    const criancas = montarCriancas(form);
+    if (criancas.length > 0) fd.append('CRIANCAS', JSON.stringify(criancas));
+  }
 
   if (form.possuiHolerite === 'Sim' && form.holeriteArquivo) {
     fd.append('file', form.holeriteArquivo, form.holeriteArquivo.name);

@@ -42,6 +42,11 @@ export interface Evento {
   metas: MetaItem[];       // 2 a 3 infos exibidas no card
   goLabel?: string;        // texto do botão/ação no card
   detalhe?: EventoDetalhe; // presente quando há página de detalhe + inscrição
+  // Eventos que sorteiam/atendem crianças (ex.: Dia das Crianças) ganham a
+  // etapa de dependentes no wizard. A configuração é do EVENTO, não do tenant:
+  // o mesmo sindicato tem eventos que pedem crianças e eventos que não pedem.
+  // Ausente/false = fluxo idêntico ao de sempre. No futuro virá da API.
+  pedeCriancas?: boolean;
 }
 
 // Tema visual do site (varia por cliente). Aplicado como CSS custom properties.

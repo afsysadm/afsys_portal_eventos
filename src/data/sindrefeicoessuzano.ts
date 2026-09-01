@@ -21,6 +21,10 @@ export const EVENTOS: Evento[] = [
       'O sindicato sorteia presentes de Dia das Crianças para os filhos e netos da categoria. Inscreva as crianças e acompanhe o sorteio virtual.',
     status: 'aberto',
     cor: 'emerald',
+    // Este evento inscreve as crianças (filhos/netos) do trabalhador: o wizard
+    // ganha a etapa de dependentes. Corridas e homenagens do mesmo sindicato
+    // não recebem a flag.
+    pedeCriancas: true,
     metas: [
       { k: 'Inscrições', v: '01/09 — 30/09' },
       { k: 'Sorteio', v: 'A definir', ph: true },

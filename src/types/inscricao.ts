@@ -5,12 +5,43 @@
 export type StatusInscricao = 'INSCRITO' | 'PENDENTE HOLERITE' | 'PENDENCIA CNPJ';
 export type SimNao = 'Sim' | 'Não';
 
+// Canal preferido para as notificações. O valor viaja em minúsculas, como o
+// backend espera em CONTATO_PREFERIDO.
+export type ContatoPreferido = 'whatsapp' | 'email';
+
+// ----- Crianças/dependentes (eventos com `pedeCriancas`) -----
+// Os textos abaixo são enviados ao backend EXATAMENTE como estão: a validação
+// server-side compara com esta lista fechada.
+export type VinculoCrianca = 'Filho(a)' | 'Neto(a)' | 'Outro(a)';
+export type FaixaEtariaCrianca = '0 a 4 anos' | '5 a 9 anos' | '10 a 15 anos';
+
+export const VINCULOS_CRIANCA: VinculoCrianca[] = ['Filho(a)', 'Neto(a)', 'Outro(a)'];
+export const FAIXAS_CRIANCA: FaixaEtariaCrianca[] = ['0 a 4 anos', '5 a 9 anos', '10 a 15 anos'];
+
+export const MAX_CRIANCAS = 10;
+export const NOME_CRIANCA_MIN = 2;
+export const NOME_CRIANCA_MAX = 120;
+
+export interface CriancaForm {
+  nome: string;
+  vinculo: VinculoCrianca | '';
+  faixaEtaria: FaixaEtariaCrianca | '';
+}
+
+export function novaCrianca(): CriancaForm {
+  return { nome: '', vinculo: '', faixaEtaria: '' };
+}
+
 export interface InscricaoForm {
   lgpd: boolean;              // aceite LGPD (true = "Autorizo")
   cpf: string;               // mascarado: 000.000.000-00
   nomeCompleto: string;
   whatsapp: string;          // mascarado: (00) 00000-0000
+  email: string;
+  contatoPreferido: ContatoPreferido;
   cidade: string;
+  // Só é enviado nos eventos com `pedeCriancas` (ver services/inscricao.ts).
+  criancas: CriancaForm[];
   querSindicalizar: SimNao | '';
   temCnpj: SimNao | '';
   cnpj: string;              // mascarado: 00.000.000/0000-00
@@ -26,7 +57,13 @@ export function novoForm(): InscricaoForm {
     cpf: '',
     nomeCompleto: '',
     whatsapp: '',
+    email: '',
+    // WhatsApp já é obrigatório no wizard, então é o padrão: a preferência
+    // começa preenchida e nenhum fluxo existente ganha um campo bloqueante.
+    contatoPreferido: 'whatsapp',
     cidade: '',
+    // Começa com uma criança em branco — é o caso mais comum.
+    criancas: [novaCrianca()],
     querSindicalizar: '',
     temCnpj: '',
     cnpj: '',

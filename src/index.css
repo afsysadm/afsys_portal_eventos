@@ -306,6 +306,15 @@ footer{border-top:1px solid var(--line);padding:40px 0 34px;background:var(--bg-
 .wz-btn-ghost:disabled{opacity:.5;cursor:default}
 .wz-back-lgpd{margin-top:16px;width:100%}
 
+/* crianças/dependentes — mesma moldura das caixas do wizard, só para separar
+   visualmente uma criança da outra */
+.wz-crianca{border:1px solid var(--line);border-radius:12px;padding:16px 16px 2px;margin-bottom:14px;background:var(--bg-alt)}
+.wz-crianca-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.wz-crianca-num{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.wz-crianca-rm{background:transparent;border:none;color:#DC2626;font-family:var(--ui);font-size:13px;font-weight:600;cursor:pointer;padding:4px 2px}
+.wz-crianca-rm:hover{text-decoration:underline}
+.wz-crianca-add{width:100%;margin-top:2px}
+
 /* revisão */
 .wz-review{list-style:none;display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .wz-review li{display:flex;justify-content:space-between;gap:16px;padding:12px 15px;background:var(--surface)}

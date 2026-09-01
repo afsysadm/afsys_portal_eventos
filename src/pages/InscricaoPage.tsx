@@ -2,8 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import type { Evento } from '../types';
-import type { InscricaoForm, SubmitResult, CpfCheckResult } from '../types/inscricao';
-import { novoForm } from '../types/inscricao';
+import type { InscricaoForm, SubmitResult, CpfCheckResult, CriancaForm } from '../types/inscricao';
+import {
+  novoForm,
+  novaCrianca,
+  VINCULOS_CRIANCA,
+  FAIXAS_CRIANCA,
+  MAX_CRIANCAS,
+  NOME_CRIANCA_MIN,
+  NOME_CRIANCA_MAX,
+} from '../types/inscricao';
 import { getEvento } from '../services/events';
 import { inscricoesAbertas } from '../services/statusPortal';
 import { checarCpf, submitInscricao } from '../services/inscricao';
@@ -14,6 +22,7 @@ import {
   isValidCPF,
   isValidCNPJ,
   isValidPhone,
+  isValidEmail,
   validarHolerite,
 } from '../lib/validators';
 import { Nav } from '../components/Nav';
@@ -27,8 +36,48 @@ type Errors = Record<string, string>;
 // Etapas (CPF PRIMEIRO — antes da LGPD e de qualquer dado).
 // Rótulos VISÍVEIS das etapas. "Contribuinte" é só o texto exibido — a etapa
 // interna continua sendo S.SINDICAL e o campo do payload é QUER_SE_SINDICALIZAR.
-const STEPS = ['CPF', 'Consentimento', 'Seus dados', 'Contribuinte', 'Empresa', 'Holerite', 'Revisão'];
-const S = { CPF: 0, LGPD: 1, DADOS: 2, SINDICAL: 3, EMPRESA: 4, HOLERITE: 5, REVISAO: 6 };
+//
+// A etapa "Crianças" existe apenas nos eventos com `pedeCriancas`, e entra
+// depois dos dados pessoais/contato e antes do vínculo empregatício. Rótulos e
+// índices são montados juntos por `montarEtapas`: sem a flag, os índices ficam
+// exatamente os de antes (o evento do hoteleiro não muda de numeração).
+type ChaveEtapa =
+  | 'CPF'
+  | 'LGPD'
+  | 'DADOS'
+  | 'CRIANCAS'
+  | 'SINDICAL'
+  | 'EMPRESA'
+  | 'HOLERITE'
+  | 'REVISAO';
+
+// A etapa de CPF é sempre a primeira, com ou sem a etapa de crianças.
+const ETAPA_CPF = 0;
+
+function montarEtapas(pedeCriancas: boolean): { steps: string[]; S: Record<ChaveEtapa, number> } {
+  const steps = pedeCriancas
+    ? ['CPF', 'Consentimento', 'Seus dados', 'Crianças', 'Contribuinte', 'Empresa', 'Holerite', 'Revisão']
+    : ['CPF', 'Consentimento', 'Seus dados', 'Contribuinte', 'Empresa', 'Holerite', 'Revisão'];
+
+  // Deslocamento aplicado a tudo que vem depois da etapa de crianças.
+  const d = pedeCriancas ? 1 : 0;
+
+  return {
+    steps,
+    S: {
+      CPF: ETAPA_CPF,
+      LGPD: 1,
+      DADOS: 2,
+      // Sem a etapa, -1 nunca casa com o `step` atual: ela não é renderizada,
+      // não é validada e não aparece no Stepper.
+      CRIANCAS: pedeCriancas ? 3 : -1,
+      SINDICAL: 3 + d,
+      EMPRESA: 4 + d,
+      HOLERITE: 5 + d,
+      REVISAO: 6 + d,
+    },
+  };
+}
 
 // Mensagens amigáveis por código de erro do backend.
 const MSG_CHECAR: Record<string, string> = {
@@ -40,6 +89,7 @@ const MSG_SUBMIT: Record<string, string> = {
   inscricoes_encerradas: 'As inscrições para este evento foram encerradas.',
   turnstile_falhou: 'A verificação de segurança falhou. Refaça a verificação e tente novamente.',
   validacao: 'Alguns dados não passaram na validação. Revise as informações e tente novamente.',
+  criancas_invalidas: 'Confira os dados das crianças e tente novamente.',
   evento_nao_encontrado: 'Evento não encontrado. Verifique o link e tente novamente.',
 };
 
@@ -50,7 +100,7 @@ export function InscricaoPage() {
   const [evento, setEvento] = useState<Evento | null | undefined>(undefined);
   // Janela de inscrições (status_portal do backend); null = ainda carregando.
   const [aberto, setAberto] = useState<boolean | null>(null);
-  const [step, setStep] = useState(S.CPF);
+  const [step, setStep] = useState(ETAPA_CPF);
   const [form, setForm] = useState<InscricaoForm>(novoForm());
   const [errors, setErrors] = useState<Errors>({});
   const [fase, setFase] = useState<Fase>('form');
@@ -87,12 +137,44 @@ export function InscricaoPage() {
     };
   }, [slug]);
 
+  const pedeCriancas = evento?.pedeCriancas === true;
+  const { steps: STEPS, S } = useMemo(() => montarEtapas(pedeCriancas), [pedeCriancas]);
+
   const semCnpj = form.temCnpj === 'Não';
-  const skipped = useMemo(() => (semCnpj ? [S.HOLERITE] : []), [semCnpj]);
+  const skipped = useMemo(() => (semCnpj ? [S.HOLERITE] : []), [semCnpj, S]);
 
   function set<K extends keyof InscricaoForm>(key: K, value: InscricaoForm[K]) {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: '' }));
+  }
+
+  // ---- crianças/dependentes ----
+  // Recebe um patch parcial (ex.: { nome: 'Ana' }) para alterar um campo de uma
+  // criança sem tocar nas demais. Os erros são indexados por posição + campo.
+  function setCrianca(i: number, patch: Partial<CriancaForm>) {
+    setForm((f) => ({
+      ...f,
+      criancas: f.criancas.map((c, idx) => (idx === i ? { ...c, ...patch } : c)),
+    }));
+    const campos = Object.keys(patch);
+    setErrors((e) => {
+      const limpo = { ...e };
+      for (const campo of campos) limpo[`crianca_${i}_${campo}`] = '';
+      return limpo;
+    });
+  }
+
+  function adicionarCrianca() {
+    setForm((f) =>
+      f.criancas.length >= MAX_CRIANCAS ? f : { ...f, criancas: [...f.criancas, novaCrianca()] }
+    );
+  }
+
+  function removerCrianca(i: number) {
+    setForm((f) => ({ ...f, criancas: f.criancas.filter((_, idx) => idx !== i) }));
+    // Os erros são indexados por posição: remover no meio da lista deslocaria
+    // as mensagens para a criança errada. Limpar é mais simples que remapear.
+    setErrors({});
   }
 
   function renovarCpfTurnstile() {
@@ -148,7 +230,26 @@ export function InscricaoPage() {
     } else if (step === S.DADOS) {
       if (form.nomeCompleto.trim().length < 3) e.nomeCompleto = 'Informe seu nome completo.';
       if (!isValidPhone(form.whatsapp)) e.whatsapp = 'Informe um WhatsApp válido com DDD.';
+      // O e-mail é opcional, exceto para quem escolhe recebê-lo como canal
+      // preferido. Preenchido, precisa ter formato válido.
+      if (form.contatoPreferido === 'email' && form.email.trim() === '') {
+        e.email = 'Informe seu e-mail para receber as notificações por lá.';
+      } else if (form.email.trim() !== '' && !isValidEmail(form.email)) {
+        e.email = 'Informe um e-mail válido.';
+      }
       if (form.cidade.trim().length < 2) e.cidade = 'Informe sua cidade.';
+    } else if (step === S.CRIANCAS) {
+      if (form.criancas.length === 0) {
+        e.criancas = 'Cadastre pelo menos uma criança.';
+      }
+      form.criancas.forEach((c, i) => {
+        const nome = c.nome.trim();
+        if (nome.length < NOME_CRIANCA_MIN || nome.length > NOME_CRIANCA_MAX) {
+          e[`crianca_${i}_nome`] = `Informe o nome da criança (de ${NOME_CRIANCA_MIN} a ${NOME_CRIANCA_MAX} caracteres).`;
+        }
+        if (!c.vinculo) e[`crianca_${i}_vinculo`] = 'Selecione o vínculo.';
+        if (!c.faixaEtaria) e[`crianca_${i}_faixaEtaria`] = 'Selecione a faixa etária.';
+      });
     } else if (step === S.SINDICAL) {
       if (!form.querSindicalizar) e.querSindicalizar = 'Selecione uma opção.';
     } else if (step === S.EMPRESA) {
@@ -468,12 +569,87 @@ export function InscricaoPage() {
               error={errors.whatsapp}
             />
             <TextField
+              label="E-mail"
+              value={form.email}
+              onChange={(v) => set('email', v)}
+              placeholder="voce@exemplo.com"
+              inputMode="email"
+              error={errors.email}
+              hint="Usamos para enviar avisos sobre a inscrição."
+            />
+            <ChoiceField
+              label="Onde você prefere receber as notificações?"
+              options={['WhatsApp', 'E-mail']}
+              value={form.contatoPreferido === 'email' ? 'E-mail' : 'WhatsApp'}
+              onChange={(v) => set('contatoPreferido', v === 'E-mail' ? 'email' : 'whatsapp')}
+            />
+            <TextField
               label="Cidade"
               value={form.cidade}
               onChange={(v) => set('cidade', v)}
               placeholder="Sua cidade"
               error={errors.cidade}
             />
+          </div>
+        )}
+
+        {step === S.CRIANCAS && (
+          <div className="wz-step-body">
+            <h3 className="wz-step-title">Crianças</h3>
+            <p className="wz-lgpd">
+              Informe quem você quer inscrever. São aceitos filhos, netos e outros dependentes de
+              0 a 15 anos, no limite de {MAX_CRIANCAS} crianças por inscrição.
+            </p>
+
+            {form.criancas.map((c, i) => (
+              <div className="wz-crianca" key={i}>
+                <div className="wz-crianca-head">
+                  <span className="wz-crianca-num">Criança {i + 1}</span>
+                  {i > 0 && (
+                    <button
+                      type="button"
+                      className="wz-crianca-rm"
+                      onClick={() => removerCrianca(i)}
+                    >
+                      Remover
+                    </button>
+                  )}
+                </div>
+                <TextField
+                  label="Nome"
+                  value={c.nome}
+                  onChange={(v) => setCrianca(i, { nome: v })}
+                  placeholder="Nome da criança"
+                  error={errors[`crianca_${i}_nome`]}
+                />
+                <ChoiceField
+                  label="Vínculo"
+                  options={VINCULOS_CRIANCA}
+                  value={c.vinculo}
+                  onChange={(v) => setCrianca(i, { vinculo: v as CriancaForm['vinculo'] })}
+                  error={errors[`crianca_${i}_vinculo`]}
+                />
+                <ChoiceField
+                  label="Faixa etária"
+                  options={FAIXAS_CRIANCA}
+                  value={c.faixaEtaria}
+                  onChange={(v) => setCrianca(i, { faixaEtaria: v as CriancaForm['faixaEtaria'] })}
+                  error={errors[`crianca_${i}_faixaEtaria`]}
+                />
+              </div>
+            ))}
+
+            {errors.criancas && <p className="wz-err wz-err-block">{errors.criancas}</p>}
+
+            {form.criancas.length < MAX_CRIANCAS ? (
+              <button type="button" className="wz-btn-ghost wz-crianca-add" onClick={adicionarCrianca}>
+                + Adicionar outra criança
+              </button>
+            ) : (
+              <p className="wz-note">
+                Você atingiu o limite de <b>{MAX_CRIANCAS} crianças</b> por inscrição.
+              </p>
+            )}
           </div>
         )}
 
@@ -607,7 +783,20 @@ export function InscricaoPage() {
                 <Item k="CPF" v={form.cpf} />
                 <Item k="Nome" v={form.nomeCompleto} />
                 <Item k="WhatsApp" v={form.whatsapp} />
+                <Item k="E-mail" v={form.email} />
+                <Item
+                  k="Prefere receber por"
+                  v={form.contatoPreferido === 'email' ? 'E-mail' : 'WhatsApp'}
+                />
                 <Item k="Cidade" v={form.cidade} />
+                {pedeCriancas &&
+                  form.criancas.map((c, i) => (
+                    <Item
+                      key={i}
+                      k={`Criança ${i + 1}`}
+                      v={[c.nome, c.vinculo, c.faixaEtaria].filter(Boolean).join(' · ')}
+                    />
+                  ))}
                 <Item k="Quer se sindicalizar" v={form.querSindicalizar} />
                 <Item k="Tem CNPJ" v={form.temCnpj} />
                 {form.temCnpj === 'Sim' && <Item k="CNPJ" v={form.cnpj} />}
