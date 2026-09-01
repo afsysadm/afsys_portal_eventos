@@ -1,14 +1,15 @@
 import type { SiteConfig } from '../types';
-import { MOCK_SITE_CONFIG } from '../data/mock';
+import { getTenantData } from '../data';
 
 // ---------------------------------------------------------------------------
 // CAMADA DE SERVIÇO — CONFIGURAÇÃO DO SITE (MULTI-CLIENTE)
 //
 // O mesmo site atende vários clientes, diferenciados pela URL (hostname).
 // Aqui é onde o app descobre "de quem é este site" e recebe o tenant, o nome,
-// o tema visual e os contatos do cliente.
+// os textos da home, o tema visual e as estatísticas do cliente.
 //
-// Hoje retorna um mock fixo. Na integração, troque por:
+// O hostname é resolvido em config/tenants.ts (resolveTenant) e os dados vêm
+// de src/data/<slug>.ts. Na integração, troque por:
 //
 //   const host = window.location.hostname;
 //   const res = await fetch(`${CONFIG_API}/site-config?host=${host}`);
@@ -19,12 +20,6 @@ import { MOCK_SITE_CONFIG } from '../data/mock';
 // ---------------------------------------------------------------------------
 
 export async function getSiteConfig(): Promise<SiteConfig> {
-  // const host = window.location.hostname; // usado na integração
-  return new Promise((resolve) => setTimeout(() => resolve(MOCK_SITE_CONFIG), 120));
-}
-
-// Base da API do tenant (placeholder para a fase de integração).
-// Ex.: `https://${tenant}.gestao.afsys.com.br`
-export function getApiBase(_tenant: string): string {
-  return '';
+  const cfg = getTenantData().siteConfig;
+  return new Promise((resolve) => setTimeout(() => resolve(cfg), 120));
 }

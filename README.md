@@ -33,10 +33,15 @@ npm run preview   # serve o ./dist localmente
 src/
 ├── types/            Tipos do domínio (Evento, SiteConfig, ...)
 ├── theme/palette.ts  Cores dos eventos + temas por cliente + applyTheme()
-├── data/mock.ts      Dados mock (eventos + config do site)
-├── services/         Camada de dados (TROCAR mock por API aqui)
+├── config/tenants.ts Tenants (marca, cores, apiBase) + resolução por hostname
+├── config.ts         apiBase() do tenant + chave do Turnstile
+├── data/             Dados POR TENANT (um arquivo por sindicato) + index.ts
+│   ├── index.ts         TENANT_DATA (slug -> dados) e getTenantData()
+│   ├── hoteleirorp.ts   EVENTOS + SITE_CONFIG
+│   └── sindrefeicoessuzano.ts
+├── services/         Camada de dados (TROCAR dados locais por API aqui)
 │   ├── events.ts        getEventos(), getEvento(slug)
-│   └── siteConfig.ts    getSiteConfig() por hostname
+│   └── siteConfig.ts    getSiteConfig() do tenant resolvido
 ├── context/          SiteContext (tema) e ToastContext
 ├── hooks/useReveal   Animação de entrada ao rolar
 ├── components/       Nav, Footer, Aurora, Lineup, EventCard
@@ -46,12 +51,26 @@ src/
 
 ## Multi-cliente (como funciona)
 
-- O tema visual é aplicado em runtime via `applyTheme()` a partir de `SiteConfig.theme`.
-- `getSiteConfig()` (em `services/siteConfig.ts`) resolverá o cliente pelo **hostname**.
-  Hoje retorna um mock; na integração, troque por `fetch(.../site-config?host=...)`.
-- Para um novo cliente: cadastrar a config no backend e apontar o domínio para este
-  mesmo site. **Sem rebuild.** Cores/logo/nome podem variar por cliente; a estrutura
-  permanece.
+- `resolveTenant()` (em `config/tenants.ts`) resolve o sindicato pelo **hostname**,
+  usando o mapa explícito `HOSTNAME_TENANT`. Hostname desconhecido (localhost, preview)
+  cai no `DEFAULT_TENANT`.
+- Marca, cores, contato e **base da API** (`apiBase`) vêm da entrada do tenant; a cor é
+  aplicada em runtime como CSS custom properties por `applyTenantTheme()`.
+- Eventos e textos da home vêm de `src/data/<slug>.ts`, via `getTenantData()`.
+
+| Tenant | Portal | API (Perfex) |
+|---|---|---|
+| `hoteleirorp` | hoteleirosrp.afsys.com.br | https://hoteleirorp.gestao.afsys.com.br |
+| `sindrefeicoessuzano` | sindrefeicoessuzano.afsys.com.br | https://sindrefeicoessuzano.gestao.afsys.com.br |
+
+**Para adicionar um sindicato** (3 passos, sem refatorar nada):
+
+1. Entrada em `TENANTS` e no mapa `HOSTNAME_TENANT` (`config/tenants.ts`).
+2. Arquivo `src/data/<slug>.ts` exportando `EVENTOS` e `SITE_CONFIG`.
+3. Linha em `TENANT_DATA` (`src/data/index.ts`) + a logo em `public/assets/`.
+
+Também é preciso liberar o novo hostname no painel do Cloudflare Turnstile (a chave
+do site é a mesma para todos os domínios).
 
 ## Integração com a API (próxima fase)
 

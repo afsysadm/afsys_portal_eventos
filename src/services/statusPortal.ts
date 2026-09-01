@@ -1,10 +1,11 @@
-import { API_BASE } from '../config';
+import { apiBase } from '../config';
 
 // ---------------------------------------------------------------------------
 // SERVIÇO — STATUS DO PORTAL (janela de inscrições)
 //
 // Único dado que vem do backend nesta fase: o `status_portal` de cada evento.
-// Todo o conteúdo (títulos, textos, resumo, passos) continua em data/mock.ts.
+// Todo o conteúdo (títulos, textos, resumo, passos) continua em src/data/, por
+// tenant. A base da API também é do tenant resolvido (config.ts → apiBase()).
 //
 // GET publico/eventos →
 //   { ok: true, eventos: [{ slug, status_portal: 'aberto' | 'encerrado' | 'em_breve', … }] }
@@ -36,7 +37,7 @@ async function buscar(): Promise<StatusPortalMap> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${API_BASE}/afsys_inscricoes/publico/eventos`, {
+    const res = await fetch(`${apiBase()}/afsys_inscricoes/publico/eventos`, {
       signal: ctrl.signal,
     });
     const data: { ok?: boolean; eventos?: EventoApi[] } = await res.json();

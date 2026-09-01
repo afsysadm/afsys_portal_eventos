@@ -139,7 +139,9 @@ export function EventPage() {
         <div className="wrap">
           <div className="foot-bottom" style={{ border: 'none', margin: 0, padding: 0 }}>
             <span>© 2026 {evento.titulo}</span>
-            <span>hoteleiros.afsys.com.br</span>
+            {/* Domínio do portal — vem do próprio host, para não vazar a marca
+                de um tenant na página de outro. */}
+            <span>{window.location.host}</span>
           </div>
         </div>
       </footer>

@@ -31,7 +31,7 @@ export function HubPage() {
   const [tab, setTab] = useState<TabKey>(() => HASH_TAB[window.location.hash] ?? 'aberto');
   const ref = useReveal<HTMLDivElement>([eventos, tab]);
 
-  // Eventos (mock) + janela de inscrições (backend) chegam juntos, para os
+  // Eventos (do tenant) + janela de inscrições (backend) chegam juntos, para os
   // cards já nascerem com o call-to-action correto (sem piscar).
   useEffect(() => {
     let ativo = true;
@@ -79,9 +79,9 @@ export function HubPage() {
 
       <header className="hero">
         <div className="wrap">
-          <span className="eyebrow"><span className="live" /> Eventos do sindicato · {site.ano}</span>
-          <h1>A agenda que move a categoria.</h1>
-          <p>Corridas, homenagens e sorteios do sindicato. Inscrição online, na hora, sem filas.</p>
+          <span className="eyebrow"><span className="live" /> {site.hero.kicker}</span>
+          <h1>{site.hero.titulo}</h1>
+          <p>{site.hero.subtitulo}</p>
           <button className="btn-on-band" onClick={() => irParaEventos('aberto')}>
             Ver inscrições abertas <span className="arr">→</span>
           </button>
@@ -139,11 +139,8 @@ export function HubPage() {
           <div className="about-card reveal">
             <div className="grid">
               <div>
-                <h2>Quem move a hospitalidade merece ser celebrado.</h2>
-                <p>
-                  O sindicato promove o ano todo corridas, homenagens e ações para reconhecer
-                  os trabalhadores de hotéis, bares e restaurantes. Todas as inscrições, num só lugar.
-                </p>
+                <h2>{site.sobre.titulo}</h2>
+                <p>{site.sobre.texto}</p>
               </div>
               {site.stats && (
                 <div className="stats">

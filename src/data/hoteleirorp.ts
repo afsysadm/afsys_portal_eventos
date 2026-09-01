@@ -2,14 +2,13 @@ import type { Evento, SiteConfig } from '../types';
 import { THEME_FESTIVAL } from '../theme/palette';
 
 // ---------------------------------------------------------------------------
-// DADOS MOCK (Fase 1).
-// Mais à frente, estes dados virão da API pública do módulo afsys_inscricoes,
-// resolvidos pelo tenant do cliente. A troca acontece apenas na camada de
-// serviço (src/services), sem alterar componentes nem páginas.
+// DADOS DO TENANT — SINDICATO DOS HOTELEIROS (Ribeirão Preto e Região)
+// Conteúdo editorial do portal (títulos, textos, resumo, passos). O que vem do
+// backend é apenas o `status_portal` (services/statusPortal.ts).
 // Campos marcados com ph:true são placeholders a confirmar com o cliente.
 // ---------------------------------------------------------------------------
 
-export const MOCK_EVENTOS: Evento[] = [
+export const EVENTOS: Evento[] = [
   {
     id: 1,
     slug: 'garcon-cross-2026',
@@ -84,13 +83,23 @@ export const MOCK_EVENTOS: Evento[] = [
   },
 ];
 
-export const MOCK_SITE_CONFIG: SiteConfig = {
+export const SITE_CONFIG: SiteConfig = {
   tenant: 'hoteleirorp',
   nome: 'Sindicato da Categoria',
   subtitulo: 'Hotéis · Bares · Restaurantes',
   marca: 'S',
   ano: '2026',
   theme: THEME_FESTIVAL,
+  hero: {
+    kicker: 'Eventos do sindicato · 2026',
+    titulo: 'A agenda que move a categoria.',
+    subtitulo: 'Corridas, homenagens e sorteios do sindicato. Inscrição online, na hora, sem filas.',
+  },
+  sobre: {
+    titulo: 'Quem move a hospitalidade merece ser celebrado.',
+    texto:
+      'O sindicato promove o ano todo corridas, homenagens e ações para reconhecer os trabalhadores de hotéis, bares e restaurantes. Todas as inscrições, num só lugar.',
+  },
   contato: {
     endereco: 'Endereço do sindicato',
     whatsapp: 'Contato / WhatsApp',

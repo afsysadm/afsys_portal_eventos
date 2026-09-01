@@ -6,7 +6,7 @@ import type {
   StatusInscricao,
 } from '../types/inscricao';
 import { onlyDigits } from '../lib/validators';
-import { API_BASE } from '../config';
+import { apiBase } from '../config';
 
 // ---------------------------------------------------------------------------
 // SERVIÇO DE INSCRIÇÃO
@@ -39,7 +39,7 @@ export async function checarCpf(
   slug: string,
   turnstileToken: string
 ): Promise<CpfCheckResult> {
-  const url = `${API_BASE}/afsys_inscricoes/publico/checar_cpf/${slug}`;
+  const url = `${apiBase()}/afsys_inscricoes/publico/checar_cpf/${slug}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -162,7 +162,7 @@ export async function submitInscricao(
     fd.append('file', form.holeriteArquivo, form.holeriteArquivo.name);
   }
 
-  const url = `${API_BASE}/afsys_inscricoes/publico/submit/${evento.slug}`;
+  const url = `${apiBase()}/afsys_inscricoes/publico/submit/${evento.slug}`;
 
   const res = await fetch(url, { method: 'POST', body: fd });
 

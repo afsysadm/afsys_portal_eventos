@@ -50,6 +50,19 @@ export interface SiteTheme {
   vars: Record<string, string>;
 }
 
+// Chamada principal da home (faixa azul do topo).
+export interface HeroConfig {
+  kicker: string;          // ex.: "Eventos do sindicato · 2026" (exibido em caixa alta)
+  titulo: string;
+  subtitulo: string;
+}
+
+// Bloco institucional que acompanha as estatísticas na home.
+export interface SobreConfig {
+  titulo: string;
+  texto: string;
+}
+
 // Configuração do site resolvida pelo hostname (1 por cliente/tenant).
 export interface SiteConfig {
   tenant: string;          // slug do tenant no Perfex (ex.: "hoteleirorp")
@@ -58,6 +71,8 @@ export interface SiteConfig {
   marca: string;           // letra/símbolo do brasão (ex.: "S")
   ano: string;             // ex.: "2026"
   theme: SiteTheme;
+  hero: HeroConfig;
+  sobre: SobreConfig;
   contato?: {
     endereco?: string;
     whatsapp?: string;
