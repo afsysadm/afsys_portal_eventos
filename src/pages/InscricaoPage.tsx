@@ -128,6 +128,11 @@ export function InscricaoPage() {
   // apagar a saudação assim que o CPF digitado mudar.
   const [nomeAfsys, setNomeAfsys] = useState('');
   const [cpfChecado, setCpfChecado] = useState('');
+
+  // Contatos mascarados do cadastro (mesma resposta da checagem). Exibidos na
+  // etapa de contato para a pessoa reconhecer onde pode receber o código. Nunca
+  // são comparados aqui com o que ela digita — quem confere é o servidor.
+  const [contatosMasc, setContatosMasc] = useState({ whatsapp: '', email: '' });
   const [submitToken, setSubmitToken] = useState('');
   const [submitResetKey, setSubmitResetKey] = useState(0);
   const [erroSubmit, setErroSubmit] = useState('');
@@ -155,6 +160,11 @@ export function InscricaoPage() {
   // confirma. Não repete a chamada — e por isso também não exige um token novo
   // (o anterior já foi consumido e pode até ter expirado na leitura do nome).
   const cpfJaChecado = !!cpfChecado && cpfChecado === onlyDigits(form.cpf);
+
+  // Canal escolhido para receber o código, e se o cadastro tem algum contato
+  // para mostrar mascarado (sem nenhum, a etapa aparece como sempre foi).
+  const prefereEmail = form.contatoPreferido === 'email';
+  const temContatosMasc = !!(contatosMasc.whatsapp || contatosMasc.email);
   const skipped = useMemo(() => (semCnpj ? [S.HOLERITE] : []), [semCnpj, S]);
 
   function set<K extends keyof InscricaoForm>(key: K, value: InscricaoForm[K]) {
@@ -203,6 +213,7 @@ export function InscricaoPage() {
     if (!cpfChecado) return;
     setNomeAfsys('');
     setCpfChecado('');
+    setContatosMasc({ whatsapp: '', email: '' });
     setErroCpf('');
     renovarCpfTurnstile();
   }
@@ -254,13 +265,25 @@ export function InscricaoPage() {
       if (!isValidCPF(form.cpf)) e.cpf = 'Informe um CPF válido.';
     } else if (step === S.DADOS) {
       if (form.nomeCompleto.trim().length < 3) e.nomeCompleto = 'Informe seu nome completo.';
-      if (!isValidPhone(form.whatsapp)) e.whatsapp = 'Informe um WhatsApp válido com DDD.';
-      // O e-mail é opcional, exceto para quem escolhe recebê-lo como canal
-      // preferido. Preenchido, precisa ter formato válido.
-      if (form.contatoPreferido === 'email' && form.email.trim() === '') {
-        e.email = 'Informe seu e-mail para receber as notificações por lá.';
-      } else if (form.email.trim() !== '' && !isValidEmail(form.email)) {
-        e.email = 'Informe um e-mail válido.';
+      // Obrigatório é o canal escolhido para receber o código; o outro segue
+      // opcional, mas se preenchido precisa ter formato válido. NÃO conferimos
+      // aqui contra a máscara do cadastro — divergência é tratada no servidor.
+      if (prefereEmail) {
+        if (form.email.trim() === '') {
+          e.email = 'Informe o e-mail onde você quer receber o código.';
+        } else if (!isValidEmail(form.email)) {
+          e.email = 'Informe um e-mail válido.';
+        }
+        if (form.whatsapp.trim() !== '' && !isValidPhone(form.whatsapp)) {
+          e.whatsapp = 'Informe um WhatsApp válido com DDD.';
+        }
+      } else {
+        if (!isValidPhone(form.whatsapp)) {
+          e.whatsapp = 'Informe o WhatsApp onde você quer receber o código, com DDD.';
+        }
+        if (form.email.trim() !== '' && !isValidEmail(form.email)) {
+          e.email = 'Informe um e-mail válido.';
+        }
       }
       if (form.cidade.trim().length < 2) e.cidade = 'Informe sua cidade.';
     } else if (step === S.CRIANCAS) {
@@ -324,6 +347,7 @@ export function InscricaoPage() {
           window.scrollTo(0, 0);
           return;
         }
+        setContatosMasc({ whatsapp: r.whatsappMasc || '', email: r.emailMasc || '' });
         // Novo CPF. Com nome na base, para nesta etapa para a pessoa se
         // reconhecer (avança no próximo clique); sem nome — não associada ou
         // consulta indisponível — segue direto, sem alerta nenhum.
@@ -508,6 +532,34 @@ export function InscricaoPage() {
     );
   }
 
+  // Campos de contato da etapa "Seus dados". Ficam aqui porque a ORDEM deles
+  // segue o canal escolhido (o escolhido primeiro, logo abaixo da escolha) e o
+  // rótulo muda para marcar qual é o opcional.
+  const campoWhatsapp = (
+    <TextField
+      key="whatsapp"
+      label={'WhatsApp / Celular' + (prefereEmail ? ' (opcional)' : '')}
+      value={form.whatsapp}
+      onChange={(v) => set('whatsapp', maskPhone(v))}
+      placeholder="(00) 00000-0000"
+      inputMode="tel"
+      error={errors.whatsapp}
+    />
+  );
+
+  const campoEmail = (
+    <TextField
+      key="email"
+      label={'E-mail' + (prefereEmail ? '' : ' (opcional)')}
+      value={form.email}
+      onChange={(v) => set('email', v)}
+      placeholder="voce@exemplo.com"
+      inputMode="email"
+      error={errors.email}
+      hint={prefereEmail ? undefined : 'Usamos para enviar avisos sobre a inscrição.'}
+    />
+  );
+
   // ---------- formulário (etapas) ----------
   return (
     <Shell
@@ -597,6 +649,9 @@ export function InscricaoPage() {
         {step === S.DADOS && (
           <div className="wz-step-body">
             <h3 className="wz-step-title">Seus dados</h3>
+            <p className="wz-lgpd">
+              Confirme o contato onde você quer receber o código de verificação.
+            </p>
             <TextField
               label="Nome completo"
               value={form.nomeCompleto}
@@ -605,29 +660,50 @@ export function InscricaoPage() {
               error={errors.nomeCompleto}
               autoFocus
             />
-            <TextField
-              label="WhatsApp / Celular"
-              value={form.whatsapp}
-              onChange={(v) => set('whatsapp', maskPhone(v))}
-              placeholder="(00) 00000-0000"
-              inputMode="tel"
-              error={errors.whatsapp}
-            />
-            <TextField
-              label="E-mail"
-              value={form.email}
-              onChange={(v) => set('email', v)}
-              placeholder="voce@exemplo.com"
-              inputMode="email"
-              error={errors.email}
-              hint="Usamos para enviar avisos sobre a inscrição."
-            />
+
+            {/* Canais do cadastro, sempre mascarados. Só aparecem quando o
+                backend devolveu algum; sem nenhum, a pessoa informa do zero. */}
+            {temContatosMasc && (
+              <div className="wz-field">
+                <span className="wz-label">Contatos no seu cadastro</span>
+                <ul className="wz-review">
+                  {contatosMasc.whatsapp && (
+                    <li>
+                      <span className="rk">WhatsApp</span>
+                      <span className="rv">{contatosMasc.whatsapp}</span>
+                    </li>
+                  )}
+                  {contatosMasc.email && (
+                    <li>
+                      <span className="rk">E-mail</span>
+                      <span className="rv">{contatosMasc.email}</span>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
+
             <ChoiceField
-              label="Onde você prefere receber as notificações?"
+              label="Onde você quer receber o código de verificação?"
               options={['WhatsApp', 'E-mail']}
-              value={form.contatoPreferido === 'email' ? 'E-mail' : 'WhatsApp'}
+              value={prefereEmail ? 'E-mail' : 'WhatsApp'}
               onChange={(v) => set('contatoPreferido', v === 'E-mail' ? 'email' : 'whatsapp')}
             />
+
+            {/* O campo do canal escolhido vem logo abaixo da escolha; o outro
+                continua disponível, como opcional. */}
+            {prefereEmail ? (
+              <>
+                {campoEmail}
+                {campoWhatsapp}
+              </>
+            ) : (
+              <>
+                {campoWhatsapp}
+                {campoEmail}
+              </>
+            )}
+
             <TextField
               label="Cidade"
               value={form.cidade}

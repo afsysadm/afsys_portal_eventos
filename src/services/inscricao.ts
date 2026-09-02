@@ -57,6 +57,8 @@ export async function checarCpf(
     protocolo?: string;
     data_inscricao?: string | null;
     nome_afsys?: string | null;
+    whatsapp_masc?: string | null;
+    email_masc?: string | null;
     error?: string;
   } = {};
   try {
@@ -72,7 +74,11 @@ export async function checarCpf(
 
   // Nome na base do sindicato: null quando o CPF não é da base (ou a consulta
   // falhou). Normalizamos para string vazia = "não encontrado".
-  const nomeAfsys = typeof data.nome_afsys === 'string' ? data.nome_afsys.trim() : '';
+  const texto = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
+  const nomeAfsys = texto(data.nome_afsys);
+  // Contatos mascarados: mesma normalização (null/ausente/vazio => '').
+  const whatsappMasc = texto(data.whatsapp_masc);
+  const emailMasc = texto(data.email_masc);
 
   // Inscrição completa (INSCRITO) → bloqueia com a tela "já inscrito".
   if (data.ja_inscrito) {
@@ -97,7 +103,7 @@ export async function checarCpf(
     };
   }
 
-  return { found: false, nomeAfsys };
+  return { found: false, nomeAfsys, whatsappMasc, emailMasc };
 }
 
 // Monta o corpo (multipart) no formato esperado pelo módulo afsys_inscricoes.

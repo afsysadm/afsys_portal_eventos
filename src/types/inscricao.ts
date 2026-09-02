@@ -88,6 +88,13 @@ export interface CpfCheckResult {
   // pela checagem (qualquer um pode digitar um CPF alheio). Vem vazio quando o
   // CPF não está na base ou a consulta falha.
   nomeAfsys?: string;
+  // Contatos do cadastro, SEMPRE mascarados pelo backend (ex.: "(11) *****1556",
+  // "abi****@gmail.com"). O valor completo nunca trafega. Vêm vazios quando a
+  // base não tem aquele contato ou o CPF não está na base. Servem só para a
+  // pessoa reconhecer onde pode receber o código — a conferência com o dado
+  // real é do servidor.
+  whatsappMasc?: string;
+  emailMasc?: string;
 }
 
 export interface SubmitResult {
