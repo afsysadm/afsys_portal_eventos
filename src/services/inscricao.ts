@@ -55,6 +55,7 @@ export async function checarCpf(
     id?: number;
     protocolo?: string;
     data_inscricao?: string | null;
+    nome_afsys?: string | null;
     error?: string;
   } = {};
   try {
@@ -67,6 +68,10 @@ export async function checarCpf(
     // cpf_invalido, turnstile_falhou, evento_nao_encontrado, method_not_allowed…
     throw new Error(data.error || 'checar_falhou');
   }
+
+  // Nome na base do sindicato: null quando o CPF não é da base (ou a consulta
+  // falhou). Normalizamos para string vazia = "não encontrado".
+  const nomeAfsys = typeof data.nome_afsys === 'string' ? data.nome_afsys.trim() : '';
 
   // Inscrição completa (INSCRITO) → bloqueia com a tela "já inscrito".
   if (data.ja_inscrito) {
@@ -91,7 +96,7 @@ export async function checarCpf(
     };
   }
 
-  return { found: false };
+  return { found: false, nomeAfsys };
 }
 
 // Monta o corpo (multipart) no formato esperado pelo módulo afsys_inscricoes.

@@ -332,3 +332,7 @@ footer{border-top:1px solid var(--line);padding:40px 0 34px;background:var(--bg-
 .wz-verify .wz-label{margin-bottom:10px}
 .wz-turnstile{min-height:65px}
 .wz-err-block{margin-top:14px;padding:12px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:11px;color:#B91C1C}
+/* Saudação da etapa do CPF: reaproveita a caixa .wz-note, com o nome em
+   destaque na primeira linha. */
+.wz-hello{margin-top:16px;font-size:14px;line-height:1.55}
+.wz-hello b{display:block;font-weight:700;font-size:14.5px;margin-bottom:2px}

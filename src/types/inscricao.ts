@@ -47,6 +47,10 @@ export interface CpfCheckResult {
   status?: string;                // status da inscrição existente (dedup no submit)
   protocolo?: string;             // protocolo existente (se found/pendência)
   dataInscricao?: string | null;  // data da inscrição existente (pode vir null)
+  // Nome do trabalhador na base do sindicato — ÚNICO dado pessoal devolvido
+  // pela checagem (qualquer um pode digitar um CPF alheio). Vem vazio quando o
+  // CPF não está na base ou a consulta falha.
+  nomeAfsys?: string;
 }
 
 export interface SubmitResult {
