@@ -38,10 +38,13 @@ type Errors = Record<string, string>;
 // Rótulos VISÍVEIS das etapas. "Contribuinte" é só o texto exibido — a etapa
 // interna continua sendo S.SINDICAL e o campo do payload é QUER_SE_SINDICALIZAR.
 //
-// A etapa "Crianças" existe apenas nos eventos com `pedeCriancas`, e entra
-// depois dos dados pessoais/contato e antes do vínculo empregatício. Rótulos e
-// índices são montados juntos por `montarEtapas`: sem a flag, os índices ficam
-// exatamente os de antes (o evento do hoteleiro não muda de numeração).
+// Duas etapas são condicionais, e `montarEtapas` monta rótulos e índices juntos
+// a partir das flags:
+//  - "Crianças" só existe nos eventos com `pedeCriancas`, entre os dados
+//    pessoais/contato e o vínculo empregatício;
+//  - "Contribuinte" e "Empresa" somem para quem é `sindicalizado` na base — o
+//    vínculo e a empresa já são conhecidos, e vão preenchidos no formulário.
+// Sem nenhuma das flags os índices ficam exatamente os de antes.
 type ChaveEtapa =
   | 'CPF'
   | 'LGPD'
@@ -55,29 +58,43 @@ type ChaveEtapa =
 // A etapa de CPF é sempre a primeira, com ou sem a etapa de crianças.
 const ETAPA_CPF = 0;
 
-function montarEtapas(pedeCriancas: boolean): { steps: string[]; S: Record<ChaveEtapa, number> } {
-  const steps = pedeCriancas
-    ? ['CPF', 'Consentimento', 'Seus dados', 'Crianças', 'Contribuinte', 'Empresa', 'Holerite', 'Revisão']
-    : ['CPF', 'Consentimento', 'Seus dados', 'Contribuinte', 'Empresa', 'Holerite', 'Revisão'];
+function montarEtapas(
+  pedeCriancas: boolean,
+  sindicalizado: boolean
+): { steps: string[]; S: Record<ChaveEtapa, number> } {
+  // A ordem desta lista É a ordem do wizard; os índices saem dela, em vez de
+  // somas de deslocamento — assim uma etapa condicional a mais não desalinha as
+  // outras.
+  const etapas: { chave: ChaveEtapa; rotulo: string }[] = [
+    { chave: 'CPF', rotulo: 'CPF' },
+    { chave: 'LGPD', rotulo: 'Consentimento' },
+    { chave: 'DADOS', rotulo: 'Seus dados' },
+  ];
+  if (pedeCriancas) etapas.push({ chave: 'CRIANCAS', rotulo: 'Crianças' });
+  if (!sindicalizado) {
+    etapas.push({ chave: 'SINDICAL', rotulo: 'Contribuinte' });
+    etapas.push({ chave: 'EMPRESA', rotulo: 'Empresa' });
+  }
+  etapas.push({ chave: 'HOLERITE', rotulo: 'Holerite' });
+  etapas.push({ chave: 'REVISAO', rotulo: 'Revisão' });
 
-  // Deslocamento aplicado a tudo que vem depois da etapa de crianças.
-  const d = pedeCriancas ? 1 : 0;
-
-  return {
-    steps,
-    S: {
-      CPF: ETAPA_CPF,
-      LGPD: 1,
-      DADOS: 2,
-      // Sem a etapa, -1 nunca casa com o `step` atual: ela não é renderizada,
-      // não é validada e não aparece no Stepper.
-      CRIANCAS: pedeCriancas ? 3 : -1,
-      SINDICAL: 3 + d,
-      EMPRESA: 4 + d,
-      HOLERITE: 5 + d,
-      REVISAO: 6 + d,
-    },
+  // Etapa ausente fica em -1: nunca casa com o `step` atual, então não é
+  // renderizada, não é validada e não aparece no Stepper.
+  const S: Record<ChaveEtapa, number> = {
+    CPF: ETAPA_CPF,
+    LGPD: -1,
+    DADOS: -1,
+    CRIANCAS: -1,
+    SINDICAL: -1,
+    EMPRESA: -1,
+    HOLERITE: -1,
+    REVISAO: -1,
   };
+  etapas.forEach((e, i) => {
+    S[e.chave] = i;
+  });
+
+  return { steps: etapas.map((e) => e.rotulo), S };
 }
 
 // Mensagens amigáveis por código de erro do backend.
@@ -133,6 +150,11 @@ export function InscricaoPage() {
   // etapa de contato para a pessoa reconhecer onde pode receber o código. Nunca
   // são comparados aqui com o que ela digita — quem confere é o servidor.
   const [contatosMasc, setContatosMasc] = useState({ whatsapp: '', email: '' });
+
+  // Sindicalizado na base do sindicato: tira as etapas de Contribuinte e
+  // Empresa do wizard (os dados vêm da própria checagem). O Holerite continua
+  // sendo pedido normalmente.
+  const [sindicalizado, setSindicalizado] = useState(false);
   const [submitToken, setSubmitToken] = useState('');
   const [submitResetKey, setSubmitResetKey] = useState(0);
   const [erroSubmit, setErroSubmit] = useState('');
@@ -152,7 +174,10 @@ export function InscricaoPage() {
   }, [slug]);
 
   const pedeCriancas = evento?.pedeCriancas === true;
-  const { steps: STEPS, S } = useMemo(() => montarEtapas(pedeCriancas), [pedeCriancas]);
+  const { steps: STEPS, S } = useMemo(
+    () => montarEtapas(pedeCriancas, sindicalizado),
+    [pedeCriancas, sindicalizado]
+  );
 
   const semCnpj = form.temCnpj === 'Não';
 
@@ -214,6 +239,12 @@ export function InscricaoPage() {
     setNomeAfsys('');
     setCpfChecado('');
     setContatosMasc({ whatsapp: '', email: '' });
+    // Desfaz só o que a checagem preencheu sozinha: as etapas de vínculo voltam
+    // a existir e passam a ser respondidas para o CPF novo.
+    if (sindicalizado) {
+      setSindicalizado(false);
+      setForm((f) => ({ ...f, temCnpj: '', cnpj: '', empresaNome: '' }));
+    }
     setErroCpf('');
     renovarCpfTurnstile();
   }
@@ -348,6 +379,19 @@ export function InscricaoPage() {
           return;
         }
         setContatosMasc({ whatsapp: r.whatsappMasc || '', email: r.emailMasc || '' });
+
+        // Sindicalizado: Contribuinte e Empresa saem do wizard, e o que elas
+        // coletariam vem da base. Sem CNPJ/empresa na resposta, o campo fica
+        // vazio — nada é inventado e a pessoa não volta às etapas puladas.
+        setSindicalizado(r.sindicalizado === true);
+        if (r.sindicalizado === true) {
+          setForm((f) => ({
+            ...f,
+            temCnpj: 'Sim',
+            cnpj: r.cnpjAfsys ? maskCNPJ(r.cnpjAfsys) : '',
+            empresaNome: r.empresaAfsys || '',
+          }));
+        }
         // Novo CPF. Com nome na base, para nesta etapa para a pessoa se
         // reconhecer (avança no próximo clique); sem nome — não associada ou
         // consulta indisponível — segue direto, sem alerta nenhum.
@@ -918,7 +962,10 @@ export function InscricaoPage() {
                       v={[c.nome, c.vinculo, c.faixaEtaria].filter(Boolean).join(' · ')}
                     />
                   ))}
-                <Item k="Quer se sindicalizar" v={form.querSindicalizar} />
+                {/* Pergunta não feita a quem já é sindicalizado. */}
+                {!sindicalizado && (
+                  <Item k="Quer se sindicalizar" v={form.querSindicalizar} />
+                )}
                 <Item k="Tem CNPJ" v={form.temCnpj} />
                 {form.temCnpj === 'Sim' && <Item k="CNPJ" v={form.cnpj} />}
                 {form.temCnpj === 'Sim' && <Item k="Empresa" v={form.empresaNome} />}

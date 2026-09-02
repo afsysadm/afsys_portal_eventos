@@ -59,6 +59,9 @@ export async function checarCpf(
     nome_afsys?: string | null;
     whatsapp_masc?: string | null;
     email_masc?: string | null;
+    sindicalizado?: boolean | null;
+    cnpj_afsys?: string | null;
+    empresa_afsys?: string | null;
     error?: string;
   } = {};
   try {
@@ -79,6 +82,12 @@ export async function checarCpf(
   // Contatos mascarados: mesma normalização (null/ausente/vazio => '').
   const whatsappMasc = texto(data.whatsapp_masc);
   const emailMasc = texto(data.email_masc);
+
+  // Vínculo com o sindicato. Só o true explícito pula etapas — campo ausente,
+  // null ou qualquer outro valor mantém o fluxo completo.
+  const sindicalizado = data.sindicalizado === true;
+  const cnpjAfsys = texto(data.cnpj_afsys);
+  const empresaAfsys = texto(data.empresa_afsys);
 
   // Inscrição completa (INSCRITO) → bloqueia com a tela "já inscrito".
   if (data.ja_inscrito) {
@@ -103,7 +112,15 @@ export async function checarCpf(
     };
   }
 
-  return { found: false, nomeAfsys, whatsappMasc, emailMasc };
+  return {
+    found: false,
+    nomeAfsys,
+    whatsappMasc,
+    emailMasc,
+    sindicalizado,
+    cnpjAfsys,
+    empresaAfsys,
+  };
 }
 
 // Monta o corpo (multipart) no formato esperado pelo módulo afsys_inscricoes.

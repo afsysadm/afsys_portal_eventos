@@ -95,6 +95,12 @@ export interface CpfCheckResult {
   // real é do servidor.
   whatsappMasc?: string;
   emailMasc?: string;
+  // Sindicalizado na base: o vínculo empregatício e a empresa já são conhecidos,
+  // então o wizard pula as etapas de Contribuinte e Empresa. false para
+  // qualquer outro status (ou CPF fora da base).
+  sindicalizado?: boolean;
+  cnpjAfsys?: string;    // pode vir vazio mesmo com sindicalizado === true
+  empresaAfsys?: string; // idem
 }
 
 export interface SubmitResult {
