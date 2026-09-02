@@ -12,9 +12,9 @@ export const EVENTOS: Evento[] = [
   // desta entrada, mantendo o mesmo slug do backend.
   {
     id: 2,
-    slug: 'festa-crianca-teste',
-    titulo: 'Festa Criança (teste)',
-    tituloPoster: 'Festa\nCriança',
+    slug: 'dia-das-criancas',
+    titulo: 'Dia das Crianças',
+    tituloPoster: 'Dia das\nCrianças',
     kicker: 'Comemorativo · Crianças',
     edicao: 'Sorteio de presentes',
     descricao:
@@ -27,7 +27,7 @@ export const EVENTOS: Evento[] = [
     pedeCriancas: true,
     metas: [
       { k: 'Inscrições', v: '01/09 — 30/09' },
-      { k: 'Sorteio', v: 'A definir', ph: true },
+      { k: 'Sorteio', v: '07 out 2026' },
       { k: 'Local', v: 'Suzano/SP', ph: true },
     ],
     goLabel: 'Ver e inscrever-se',
@@ -40,7 +40,7 @@ export const EVENTOS: Evento[] = [
       ],
       resumo: [
         { k: 'Inscrições', v: '01/09 — 30/09' },
-        { k: 'Sorteio', v: 'A definir', ph: true },
+        { k: 'Sorteio', v: '07 out 2026' },
         { k: 'Local', v: 'Suzano/SP', ph: true },
         { k: 'Categorias', v: '0 a 4 · 5 a 9 · 10 a 15 anos' },
         { k: 'Valor', v: 'Gratuito para associados' },
