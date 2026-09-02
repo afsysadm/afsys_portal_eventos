@@ -16,6 +16,7 @@ import { getEvento } from '../services/events';
 import { inscricoesAbertas } from '../services/statusPortal';
 import { checarCpf, submitInscricao } from '../services/inscricao';
 import {
+  onlyDigits,
   maskCPF,
   maskCNPJ,
   maskPhone,
@@ -119,6 +120,14 @@ export function InscricaoPage() {
   const [cpfToken, setCpfToken] = useState('');
   const [cpfResetKey, setCpfResetKey] = useState(0);
   const [erroCpf, setErroCpf] = useState('');
+
+  // Nome do trabalhador na base do sindicato, devolvido pela checagem do CPF.
+  // Fica visível na própria etapa do CPF para a pessoa se reconhecer antes de
+  // avançar; `cpfChecado` guarda os dígitos já checados para (a) não repetir a
+  // chamada no clique seguinte — o token do Turnstile é de uso único — e (b)
+  // apagar a saudação assim que o CPF digitado mudar.
+  const [nomeAfsys, setNomeAfsys] = useState('');
+  const [cpfChecado, setCpfChecado] = useState('');
   const [submitToken, setSubmitToken] = useState('');
   const [submitResetKey, setSubmitResetKey] = useState(0);
   const [erroSubmit, setErroSubmit] = useState('');
@@ -141,6 +150,11 @@ export function InscricaoPage() {
   const { steps: STEPS, S } = useMemo(() => montarEtapas(pedeCriancas), [pedeCriancas]);
 
   const semCnpj = form.temCnpj === 'Não';
+
+  // CPF já checado no backend e saudação na tela: o próximo "Avançar" apenas
+  // confirma. Não repete a chamada — e por isso também não exige um token novo
+  // (o anterior já foi consumido e pode até ter expirado na leitura do nome).
+  const cpfJaChecado = !!cpfChecado && cpfChecado === onlyDigits(form.cpf);
   const skipped = useMemo(() => (semCnpj ? [S.HOLERITE] : []), [semCnpj, S]);
 
   function set<K extends keyof InscricaoForm>(key: K, value: InscricaoForm[K]) {
@@ -180,6 +194,17 @@ export function InscricaoPage() {
   function renovarCpfTurnstile() {
     setCpfToken('');
     setCpfResetKey((k) => k + 1);
+  }
+
+  // Trocar o CPF invalida a checagem anterior: some com a saudação (o nome era
+  // de outro CPF) e renova o desafio, já que o token anterior foi consumido.
+  function alterarCpf(valor: string) {
+    set('cpf', maskCPF(valor));
+    if (!cpfChecado) return;
+    setNomeAfsys('');
+    setCpfChecado('');
+    setErroCpf('');
+    renovarCpfTurnstile();
   }
 
   if (evento === undefined || aberto === null) {
@@ -272,6 +297,11 @@ export function InscricaoPage() {
 
     // Etapa CPF: consulta o backend antes de qualquer coleta de dados.
     if (step === S.CPF) {
+      // O clique agora é o "sim, sou eu": segue sem repetir a chamada.
+      if (cpfJaChecado) {
+        setStep(S.LGPD);
+        return;
+      }
       setErroCpf('');
       setBusy(true);
       try {
@@ -294,7 +324,15 @@ export function InscricaoPage() {
           window.scrollTo(0, 0);
           return;
         }
-        setStep(S.LGPD); // novo CPF → segue para o consentimento
+        // Novo CPF. Com nome na base, para nesta etapa para a pessoa se
+        // reconhecer (avança no próximo clique); sem nome — não associada ou
+        // consulta indisponível — segue direto, sem alerta nenhum.
+        if (r.nomeAfsys) {
+          setNomeAfsys(r.nomeAfsys);
+          setCpfChecado(onlyDigits(form.cpf));
+          return;
+        }
+        setStep(S.LGPD); // segue para o consentimento
       } catch (err) {
         const code = err instanceof Error ? err.message : '';
         setErroCpf(MSG_CHECAR[code] || 'Não foi possível checar seu CPF agora. Tente novamente.');
@@ -498,7 +536,7 @@ export function InscricaoPage() {
             <TextField
               label="CPF"
               value={form.cpf}
-              onChange={(v) => set('cpf', maskCPF(v))}
+              onChange={alterarCpf}
               placeholder="000.000.000-00"
               inputMode="numeric"
               error={errors.cpf}
@@ -513,6 +551,13 @@ export function InscricaoPage() {
                 onExpire={() => setCpfToken('')}
               />
             </div>
+
+            {nomeAfsys && (
+              <div className="wz-note wz-hello">
+                <b>Olá, {nomeAfsys}.</b>
+                Encontramos seu cadastro no sindicato.
+              </div>
+            )}
 
             {erroCpf && <p className="wz-err wz-err-block">{erroCpf}</p>}
           </div>
@@ -835,7 +880,7 @@ export function InscricaoPage() {
               <button
                 className="wz-btn"
                 onClick={avancar}
-                disabled={busy || (step === S.CPF && !cpfToken)}
+                disabled={busy || (step === S.CPF && !cpfToken && !cpfJaChecado)}
               >
                 {busy ? 'Aguarde…' : <>Avançar <span className="arr">→</span></>}
               </button>
