@@ -11,10 +11,11 @@ import {
   MAX_CRIANCAS,
   NOME_CRIANCA_MIN,
   NOME_CRIANCA_MAX,
+  OTP_TAMANHO,
 } from '../types/inscricao';
 import { getEvento } from '../services/events';
 import { inscricoesAbertas } from '../services/statusPortal';
-import { checarCpf, submitInscricao } from '../services/inscricao';
+import { checarCpf, submitInscricao, enviarOtp, validarOtp } from '../services/inscricao';
 import {
   onlyDigits,
   maskCPF,
@@ -43,8 +44,10 @@ type Errors = Record<string, string>;
 //  - "Crianças" só existe nos eventos com `pedeCriancas`, entre os dados
 //    pessoais/contato e o vínculo empregatício;
 //  - "Contribuinte" e "Empresa" somem para quem é `sindicalizado` na base — o
-//    vínculo e a empresa já são conhecidos, e vão preenchidos no formulário.
-// Sem nenhuma das flags os índices ficam exatamente os de antes.
+//    vínculo e a empresa já são conhecidos, e vão preenchidos no formulário;
+//  - "Holerite" some para quem é `isentoHolerite` (empresa na lista do
+//    sindicato). Nada é dito na tela: a etapa simplesmente não existe.
+// "Verificação" é sempre a última: a inscrição só é enviada depois do código.
 type ChaveEtapa =
   | 'CPF'
   | 'LGPD'
@@ -53,14 +56,16 @@ type ChaveEtapa =
   | 'SINDICAL'
   | 'EMPRESA'
   | 'HOLERITE'
-  | 'REVISAO';
+  | 'REVISAO'
+  | 'OTP';
 
 // A etapa de CPF é sempre a primeira, com ou sem a etapa de crianças.
 const ETAPA_CPF = 0;
 
 function montarEtapas(
   pedeCriancas: boolean,
-  sindicalizado: boolean
+  sindicalizado: boolean,
+  isentoHolerite: boolean
 ): { steps: string[]; S: Record<ChaveEtapa, number> } {
   // A ordem desta lista É a ordem do wizard; os índices saem dela, em vez de
   // somas de deslocamento — assim uma etapa condicional a mais não desalinha as
@@ -75,8 +80,9 @@ function montarEtapas(
     etapas.push({ chave: 'SINDICAL', rotulo: 'Contribuinte' });
     etapas.push({ chave: 'EMPRESA', rotulo: 'Empresa' });
   }
-  etapas.push({ chave: 'HOLERITE', rotulo: 'Holerite' });
+  if (!isentoHolerite) etapas.push({ chave: 'HOLERITE', rotulo: 'Holerite' });
   etapas.push({ chave: 'REVISAO', rotulo: 'Revisão' });
+  etapas.push({ chave: 'OTP', rotulo: 'Verificação' });
 
   // Etapa ausente fica em -1: nunca casa com o `step` atual, então não é
   // renderizada, não é validada e não aparece no Stepper.
@@ -89,6 +95,7 @@ function montarEtapas(
     EMPRESA: -1,
     HOLERITE: -1,
     REVISAO: -1,
+    OTP: -1,
   };
   etapas.forEach((e, i) => {
     S[e.chave] = i;
@@ -103,11 +110,24 @@ const MSG_CHECAR: Record<string, string> = {
   turnstile_falhou: 'A verificação de segurança falhou. Refaça a verificação e tente novamente.',
   evento_nao_encontrado: 'Evento não encontrado. Verifique o link e tente novamente.',
 };
+// Erros da etapa de verificação (enviar_otp / validar_otp).
+const MSG_OTP: Record<string, string> = {
+  canal_invalido: 'Canal inválido. Escolha WhatsApp ou e-mail.',
+  envio_falhou:
+    'Não foi possível enviar o código agora. Tente novamente ou escolha outro canal.',
+  turnstile_falhou: 'A verificação de segurança falhou. Refaça a verificação e tente novamente.',
+  cpf_invalido: 'CPF inválido. Confira os números digitados.',
+  codigo_expirado: 'O código expirou. Peça um novo para concluir.',
+  tentativas_excedidas: 'Muitas tentativas. Peça um novo código para concluir.',
+  resposta_invalida: 'Resposta inesperada do servidor. Tente novamente.',
+};
+
 const MSG_SUBMIT: Record<string, string> = {
   inscricoes_encerradas: 'As inscrições para este evento foram encerradas.',
   turnstile_falhou: 'A verificação de segurança falhou. Refaça a verificação e tente novamente.',
   validacao: 'Alguns dados não passaram na validação. Revise as informações e tente novamente.',
   criancas_invalidas: 'Confira os dados das crianças e tente novamente.',
+  otp_nao_validado: 'Confirme o código de verificação para concluir a inscrição.',
   evento_nao_encontrado: 'Evento não encontrado. Verifique o link e tente novamente.',
 };
 
@@ -155,8 +175,22 @@ export function InscricaoPage() {
   // Empresa do wizard (os dados vêm da própria checagem). O Holerite continua
   // sendo pedido normalmente.
   const [sindicalizado, setSindicalizado] = useState(false);
-  const [submitToken, setSubmitToken] = useState('');
-  const [submitResetKey, setSubmitResetKey] = useState(0);
+  // Isenção de holerite (empresa na lista do sindicato): tira a etapa Holerite.
+  const [isentoHolerite, setIsentoHolerite] = useState(false);
+
+  // ---- etapa de verificação (OTP) ----
+  // Um único Turnstile atende as três chamadas da etapa (enviar, validar e o
+  // submit). Como o token é de uso único, cada uma renova o desafio depois de
+  // consumi-lo — por isso o submit espera o token novo chegar (concluirPendente).
+  const [otpToken, setOtpToken] = useState('');
+  const [otpResetKey, setOtpResetKey] = useState(0);
+  const [otpFase, setOtpFase] = useState<'envio' | 'codigo'>('envio');
+  const [otpCodigo, setOtpCodigo] = useState('');
+  const [otpErro, setOtpErro] = useState('');
+  const [otpAviso, setOtpAviso] = useState('');
+  const [otpEspera, setOtpEspera] = useState(0); // segundos até liberar o reenvio
+  const [otpValidado, setOtpValidado] = useState(false);
+  const [concluirPendente, setConcluirPendente] = useState(false);
   const [erroSubmit, setErroSubmit] = useState('');
 
   useEffect(() => {
@@ -173,10 +207,40 @@ export function InscricaoPage() {
     };
   }, [slug]);
 
+  // Contagem regressiva do botão de reenviar (evita disparo em sequência).
+  useEffect(() => {
+    if (otpEspera <= 0) return;
+    const t = setTimeout(() => setOtpEspera((seg) => seg - 1), 1000);
+    return () => clearTimeout(t);
+  }, [otpEspera]);
+
+  // Código validado: o submit precisa de um token NOVO (o anterior foi gasto no
+  // validar_otp). Assim que o desafio renovado responde, a inscrição segue.
+  useEffect(() => {
+    if (!concluirPendente || !otpToken) return;
+    setConcluirPendente(false);
+    void enviar(otpToken);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [concluirPendente, otpToken]);
+
+  // Rede de segurança: se o Turnstile não devolver token, libera o botão em vez
+  // de deixar a pessoa presa em "Concluindo…".
+  useEffect(() => {
+    if (!concluirPendente) return;
+    const t = setTimeout(() => {
+      setConcluirPendente(false);
+      setBusy(false);
+      setOtpErro(
+        'A verificação de segurança demorou a responder. Toque em "Concluir inscrição" para tentar de novo.'
+      );
+    }, 15000);
+    return () => clearTimeout(t);
+  }, [concluirPendente]);
+
   const pedeCriancas = evento?.pedeCriancas === true;
   const { steps: STEPS, S } = useMemo(
-    () => montarEtapas(pedeCriancas, sindicalizado),
-    [pedeCriancas, sindicalizado]
+    () => montarEtapas(pedeCriancas, sindicalizado, isentoHolerite),
+    [pedeCriancas, sindicalizado, isentoHolerite]
   );
 
   const semCnpj = form.temCnpj === 'Não';
@@ -190,7 +254,12 @@ export function InscricaoPage() {
   // para mostrar mascarado (sem nenhum, a etapa aparece como sempre foi).
   const prefereEmail = form.contatoPreferido === 'email';
   const temContatosMasc = !!(contatosMasc.whatsapp || contatosMasc.email);
-  const skipped = useMemo(() => (semCnpj ? [S.HOLERITE] : []), [semCnpj, S]);
+  // Holerite pulado por "sem CNPJ" continua na régua, apenas marcado. Quando a
+  // etapa nem existe (isento), não há o que marcar.
+  const skipped = useMemo(
+    () => (semCnpj && S.HOLERITE >= 0 ? [S.HOLERITE] : []),
+    [semCnpj, S]
+  );
 
   function set<K extends keyof InscricaoForm>(key: K, value: InscricaoForm[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -245,6 +314,7 @@ export function InscricaoPage() {
       setSindicalizado(false);
       setForm((f) => ({ ...f, temCnpj: '', cnpj: '', empresaNome: '' }));
     }
+    setIsentoHolerite(false);
     setErroCpf('');
     renovarCpfTurnstile();
   }
@@ -383,6 +453,7 @@ export function InscricaoPage() {
         // Sindicalizado: Contribuinte e Empresa saem do wizard, e o que elas
         // coletariam vem da base. Sem CNPJ/empresa na resposta, o campo fica
         // vazio — nada é inventado e a pessoa não volta às etapas puladas.
+        setIsentoHolerite(r.isentoHolerite === true);
         setSindicalizado(r.sindicalizado === true);
         if (r.sindicalizado === true) {
           setForm((f) => ({
@@ -436,6 +507,13 @@ export function InscricaoPage() {
   }
 
   function voltar() {
+    // Da Verificação a volta é sempre para a Revisão — vale também no modo
+    // completar pendência, que não tem passo próprio depois dela.
+    if (step === S.OTP) {
+      setStep(S.REVISAO);
+      return;
+    }
+
     // Modo completar pendência (encadeado). Voltar percorre o inverso do avançar:
     //  cnpj:     Revisão → Holerite → Empresa → CPF (sai do modo)
     //  holerite: Revisão → Holerite → CPF (sai do modo)
@@ -482,11 +560,109 @@ export function InscricaoPage() {
     setErrors((e) => ({ ...e, holerite: '' }));
   }
 
-  async function enviar() {
+  // ---- etapa de verificação (OTP) ----
+
+  function renovarOtpTurnstile() {
+    setOtpToken('');
+    setOtpResetKey((k) => k + 1);
+  }
+
+  // Contato do canal escolhido, como vai para o servidor e para o formulário.
+  const destinoOtp = prefereEmail ? form.email.trim() : onlyDigits(form.whatsapp);
+
+  function destinoValido(): boolean {
+    return prefereEmail ? isValidEmail(form.email) : isValidPhone(form.whatsapp);
+  }
+
+  // Trocar de canal invalida o código já enviado: volta ao passo do envio.
+  function trocarCanalOtp(canal: 'whatsapp' | 'email') {
+    set('contatoPreferido', canal);
+    setOtpFase('envio');
+    setOtpCodigo('');
+    setOtpErro('');
+    setOtpAviso('');
+    setOtpValidado(false);
+  }
+
+  async function pedirCodigo(reenvio: boolean) {
+    if (!destinoValido()) {
+      setOtpErro(
+        prefereEmail
+          ? 'Informe um e-mail válido para receber o código.'
+          : 'Informe um WhatsApp válido com DDD para receber o código.'
+      );
+      return;
+    }
+    setOtpErro('');
+    setOtpAviso('');
+    setBusy(true);
+    try {
+      const r = await enviarOtp(form.cpf, evento!.slug, form.contatoPreferido, destinoOtp, otpToken);
+      setOtpFase('codigo');
+      setOtpCodigo('');
+      setOtpEspera(60); // janela curta antes de liberar o reenvio
+      setOtpAviso(
+        `Código ${reenvio ? 'reenviado' : 'enviado'}${
+          r.validadeMin ? ` — vale por ${r.validadeMin} minutos` : ''
+        }.`
+      );
+    } catch (err) {
+      const code = err instanceof Error ? err.message : '';
+      setOtpErro(MSG_OTP[code] || 'Não foi possível enviar o código agora. Tente novamente.');
+    } finally {
+      renovarOtpTurnstile(); // token consumido pela chamada (deu certo ou não)
+      setBusy(false);
+    }
+  }
+
+  async function validarEConcluir() {
+    if (otpCodigo.length !== OTP_TAMANHO) {
+      setOtpErro(`Digite os ${OTP_TAMANHO} dígitos do código.`);
+      return;
+    }
+    setOtpErro('');
+    setOtpAviso('');
+    setBusy(true);
+    try {
+      const r = await validarOtp(form.cpf, evento!.slug, otpCodigo, otpToken);
+      renovarOtpTurnstile();
+
+      if (r.ok) {
+        // Segue direto para o envio, assim que o token novo chegar.
+        setOtpValidado(true);
+        setConcluirPendente(true);
+        return;
+      }
+
+      if (r.erro === 'codigo_invalido' && typeof r.restantes === 'number') {
+        setOtpErro(
+          r.restantes > 0
+            ? `Código incorreto. ${r.restantes} ${
+                r.restantes === 1 ? 'tentativa restante' : 'tentativas restantes'
+              }.`
+            : 'Código incorreto. Peça um novo código.'
+        );
+      } else {
+        setOtpErro(MSG_OTP[r.erro || ''] || 'Código incorreto. Confira e tente novamente.');
+      }
+      // Expirado ou sem tentativas: só um código novo resolve.
+      if (r.erro === 'codigo_expirado' || r.erro === 'tentativas_excedidas') {
+        setOtpFase('envio');
+        setOtpCodigo('');
+      }
+      setBusy(false);
+    } catch {
+      renovarOtpTurnstile();
+      setOtpErro('Não foi possível validar o código agora. Tente novamente.');
+      setBusy(false);
+    }
+  }
+
+  async function enviar(token: string) {
     setErroSubmit('');
     setBusy(true);
     try {
-      const r = await submitInscricao(form, evento!, submitToken, completando);
+      const r = await submitInscricao(form, evento!, token, completando);
       if (r.jaInscrito) {
         setJaInscrito({ found: true, protocolo: r.protocolo, status: r.status });
         setFase('already');
@@ -497,13 +673,21 @@ export function InscricaoPage() {
       window.scrollTo(0, 0);
     } catch (err) {
       const code = err instanceof Error ? err.message : '';
-      setErroSubmit(
-        MSG_SUBMIT[code] ||
-          'Não foi possível enviar sua inscrição agora. Verifique a conexão e tente novamente.'
-      );
-      // Token de submit foi consumido: renova o desafio para o reenvio.
-      setSubmitToken('');
-      setSubmitResetKey((k) => k + 1);
+      if (code === 'otp_nao_validado') {
+        // A verificação caducou entre validar e enviar: recomeça pelo código.
+        setOtpValidado(false);
+        setOtpFase('envio');
+        setOtpCodigo('');
+        setStep(S.OTP);
+        setOtpErro('Sua verificação expirou. Peça um novo código para concluir.');
+      } else {
+        setErroSubmit(
+          MSG_SUBMIT[code] ||
+            'Não foi possível enviar sua inscrição agora. Verifique a conexão e tente novamente.'
+        );
+      }
+      // Token consumido pelo submit: renova o desafio da etapa.
+      renovarOtpTurnstile();
     } finally {
       setBusy(false);
     }
@@ -969,28 +1153,135 @@ export function InscricaoPage() {
                 <Item k="Tem CNPJ" v={form.temCnpj} />
                 {form.temCnpj === 'Sim' && <Item k="CNPJ" v={form.cnpj} />}
                 {form.temCnpj === 'Sim' && <Item k="Empresa" v={form.empresaNome} />}
-                {!semCnpj && <Item k="Possui holerite" v={form.possuiHolerite} />}
+                {/* Etapa não percorrida (sem CNPJ ou empresa isenta) não vira linha. */}
+                {!semCnpj && !isentoHolerite && (
+                  <Item k="Possui holerite" v={form.possuiHolerite} />
+                )}
                 {form.possuiHolerite === 'Sim' && (
                   <Item k="Holerite" v={form.holeriteNome || 'Não anexado (ficará pendente)'} />
                 )}
               </ul>
             )}
 
-            <div className="wz-verify">
-              <span className="wz-label">Verificação de segurança</span>
-              <Turnstile
-                resetKey={submitResetKey}
-                onVerify={(t) => setSubmitToken(t)}
-                onExpire={() => setSubmitToken('')}
-              />
-            </div>
-
-            {erroSubmit && <p className="wz-err wz-err-block">{erroSubmit}</p>}
+            <p className="wz-note">
+              No próximo passo enviamos um código para confirmar sua inscrição.
+            </p>
           </div>
         )}
 
-        {/* navegação (a etapa LGPD tem seus próprios botões) */}
-        {step !== S.LGPD && (
+        {step === S.OTP && (
+          <div className="wz-step-body">
+            <h3 className="wz-step-title">Verificação</h3>
+            <p className="wz-lgpd">
+              Para concluir, enviamos um código de {OTP_TAMANHO} dígitos. Confira o canal e o
+              contato — se estiver errado, corrija aqui.
+            </p>
+
+            <ChoiceField
+              label="Onde receber o código"
+              options={['WhatsApp', 'E-mail']}
+              value={prefereEmail ? 'E-mail' : 'WhatsApp'}
+              onChange={(v) => trocarCanalOtp(v === 'E-mail' ? 'email' : 'whatsapp')}
+            />
+
+            {prefereEmail ? (
+              <TextField
+                key="otp-email"
+                label="E-mail"
+                value={form.email}
+                onChange={(v) => {
+                  set('email', v);
+                  setOtpErro('');
+                }}
+                placeholder="voce@exemplo.com"
+                inputMode="email"
+              />
+            ) : (
+              <TextField
+                key="otp-whatsapp"
+                label="WhatsApp / Celular"
+                value={form.whatsapp}
+                onChange={(v) => {
+                  set('whatsapp', maskPhone(v));
+                  setOtpErro('');
+                }}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
+              />
+            )}
+
+            {otpFase === 'codigo' && (
+              <TextField
+                label="Código recebido"
+                value={otpCodigo}
+                onChange={(v) => {
+                  setOtpCodigo(onlyDigits(v).slice(0, OTP_TAMANHO));
+                  setOtpErro('');
+                }}
+                placeholder="000000"
+                inputMode="numeric"
+              />
+            )}
+
+            <div className="wz-verify">
+              <span className="wz-label">Verificação de segurança</span>
+              <Turnstile
+                resetKey={otpResetKey}
+                onVerify={(t) => setOtpToken(t)}
+                onExpire={() => setOtpToken('')}
+              />
+            </div>
+
+            {otpAviso && <p className="wz-note">{otpAviso}</p>}
+            {otpErro && <p className="wz-err wz-err-block">{otpErro}</p>}
+            {erroSubmit && <p className="wz-err wz-err-block">{erroSubmit}</p>}
+
+            <div className="wz-nav">
+              <button className="wz-btn-ghost" onClick={voltar} disabled={busy}>
+                ← Voltar
+              </button>
+
+              {otpValidado ? (
+                <button
+                  className="wz-btn"
+                  onClick={() => enviar(otpToken)}
+                  disabled={busy || !otpToken}
+                >
+                  {busy ? 'Concluindo…' : 'Concluir inscrição'}
+                </button>
+              ) : otpFase === 'envio' ? (
+                <button
+                  className="wz-btn"
+                  onClick={() => pedirCodigo(false)}
+                  disabled={busy || !otpToken}
+                >
+                  {busy ? 'Enviando…' : 'Enviar código'}
+                </button>
+              ) : (
+                <button
+                  className="wz-btn"
+                  onClick={validarEConcluir}
+                  disabled={busy || !otpToken || otpCodigo.length !== OTP_TAMANHO}
+                >
+                  {busy ? 'Confirmando…' : 'Validar e concluir'}
+                </button>
+              )}
+            </div>
+
+            {otpFase === 'codigo' && !otpValidado && (
+              <button
+                className="wz-btn-ghost wz-reenviar"
+                onClick={() => pedirCodigo(true)}
+                disabled={busy || otpEspera > 0 || !otpToken}
+              >
+                {otpEspera > 0 ? `Reenviar código em ${otpEspera}s` : 'Não recebi — reenviar código'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* navegação (LGPD e Verificação têm seus próprios botões) */}
+        {step !== S.LGPD && step !== S.OTP && (
           <div className="wz-nav">
             {step > S.CPF ? (
               <button className="wz-btn-ghost" onClick={voltar} disabled={busy}>
@@ -999,23 +1290,18 @@ export function InscricaoPage() {
             ) : (
               <span />
             )}
-            {step < S.REVISAO ? (
-              <button
-                className="wz-btn"
-                onClick={avancar}
-                disabled={busy || (step === S.CPF && !cpfToken && !cpfJaChecado)}
-              >
-                {busy ? 'Aguarde…' : <>Avançar <span className="arr">→</span></>}
-              </button>
-            ) : (
-              <button
-                className="wz-btn"
-                onClick={enviar}
-                disabled={busy || !submitToken}
-              >
-                {busy ? 'Enviando…' : 'Enviar inscrição'}
-              </button>
-            )}
+            <button
+              className="wz-btn"
+              onClick={avancar}
+              disabled={busy || (step === S.CPF && !cpfToken && !cpfJaChecado)}
+            >
+              {busy ? 'Aguarde…' : (
+                <>
+                  {step === S.REVISAO ? 'Ir para a verificação' : 'Avançar'}{' '}
+                  <span className="arr">→</span>
+                </>
+              )}
+            </button>
           </div>
         )}
       </div>

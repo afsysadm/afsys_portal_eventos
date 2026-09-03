@@ -101,6 +101,26 @@ export interface CpfCheckResult {
   sindicalizado?: boolean;
   cnpjAfsys?: string;    // pode vir vazio mesmo com sindicalizado === true
   empresaAfsys?: string; // idem
+  // Empresa na lista de isentos mantida pelo sindicato: o wizard não pede o
+  // holerite. Ausente ou false => fluxo atual. Nada disso aparece na tela.
+  isentoHolerite?: boolean;
+}
+
+// ----- Verificação por código (OTP) -----
+// Etapa final do wizard: a inscrição só é enviada depois que o código chega no
+// canal escolhido e é validado pelo servidor.
+export const OTP_TAMANHO = 6;
+
+export interface EnviarOtpResult {
+  validadeMin: number; // minutos de validade informados pelo servidor
+}
+
+// O validar devolve resultado em vez de lançar: o erro `codigo_invalido` traz
+// junto quantas tentativas restam, e essa informação vai para a tela.
+export interface ValidarOtpResult {
+  ok: boolean;
+  erro?: string;
+  restantes?: number;
 }
 
 export interface SubmitResult {

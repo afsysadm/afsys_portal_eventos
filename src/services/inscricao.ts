@@ -4,6 +4,9 @@ import type {
   CpfCheckResult,
   SubmitResult,
   StatusInscricao,
+  EnviarOtpResult,
+  ValidarOtpResult,
+  ContatoPreferido,
 } from '../types/inscricao';
 import { MAX_CRIANCAS } from '../types/inscricao';
 import { onlyDigits } from '../lib/validators';
@@ -62,6 +65,7 @@ export async function checarCpf(
     sindicalizado?: boolean | null;
     cnpj_afsys?: string | null;
     empresa_afsys?: string | null;
+    isento_holerite?: boolean | null;
     error?: string;
   } = {};
   try {
@@ -88,6 +92,10 @@ export async function checarCpf(
   const sindicalizado = data.sindicalizado === true;
   const cnpjAfsys = texto(data.cnpj_afsys);
   const empresaAfsys = texto(data.empresa_afsys);
+
+  // Isenção de holerite (empresa na lista do sindicato). Só o true explícito
+  // pula a etapa; campo ausente — backend antigo — mantém o fluxo atual.
+  const isentoHolerite = data.isento_holerite === true;
 
   // Inscrição completa (INSCRITO) → bloqueia com a tela "já inscrito".
   if (data.ja_inscrito) {
@@ -120,6 +128,88 @@ export async function checarCpf(
     sindicalizado,
     cnpjAfsys,
     empresaAfsys,
+    isentoHolerite,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// VERIFICAÇÃO POR CÓDIGO (OTP) — etapa final, depois da Revisão
+//
+// São duas chamadas independentes, cada uma com o SEU token do Turnstile (que é
+// de uso único): publico/enviar_otp e publico/validar_otp. Quem chama precisa
+// renovar o desafio entre elas — ver InscricaoPage.
+// ---------------------------------------------------------------------------
+
+// Dispara o envio do código no canal escolhido. `destino` vai como o usuário
+// confirmou na tela (celular só com dígitos; e-mail sem espaços).
+export async function enviarOtp(
+  cpf: string,
+  slug: string,
+  canal: ContatoPreferido,
+  destino: string,
+  turnstileToken: string
+): Promise<EnviarOtpResult> {
+  const url = `${apiBase()}/afsys_inscricoes/publico/enviar_otp/${slug}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      CPF: onlyDigits(cpf),
+      canal,
+      destino,
+      turnstile_token: turnstileToken,
+    }),
+  });
+
+  let data: { ok?: boolean; validade_min?: number; error?: string; motivo?: string } = {};
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error('resposta_invalida');
+  }
+
+  if (!data.ok) {
+    // canal_invalido, envio_falhou, turnstile_falhou, cpf_invalido…
+    throw new Error(data.error || 'envio_falhou');
+  }
+
+  return { validadeMin: Number(data.validade_min) || 0 };
+}
+
+// Confere o código digitado. Devolve resultado (não lança) nos erros de
+// negócio, porque `codigo_invalido` traz `restantes` — que a tela mostra.
+export async function validarOtp(
+  cpf: string,
+  slug: string,
+  codigo: string,
+  turnstileToken: string
+): Promise<ValidarOtpResult> {
+  const url = `${apiBase()}/afsys_inscricoes/publico/validar_otp/${slug}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      CPF: onlyDigits(cpf),
+      codigo: onlyDigits(codigo),
+      turnstile_token: turnstileToken,
+    }),
+  });
+
+  let data: { ok?: boolean; restantes?: number; error?: string } = {};
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error('resposta_invalida');
+  }
+
+  if (data.ok) return { ok: true };
+
+  return {
+    ok: false,
+    erro: data.error || 'codigo_invalido',
+    restantes: typeof data.restantes === 'number' ? data.restantes : undefined,
   };
 }
 
