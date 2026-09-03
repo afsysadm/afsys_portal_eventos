@@ -6,12 +6,9 @@ import type { InscricaoForm, SubmitResult, CpfCheckResult, CriancaForm } from '.
 import {
   novoForm,
   novaCrianca,
-  VINCULOS_CRIANCA,
-  FAIXAS_CRIANCA,
   MAX_CRIANCAS,
-  NOME_CRIANCA_MIN,
-  NOME_CRIANCA_MAX,
   OTP_TAMANHO,
+  validarCriancas,
 } from '../types/inscricao';
 import { getEvento } from '../services/events';
 import { inscricoesAbertas } from '../services/statusPortal';
@@ -29,10 +26,12 @@ import {
 } from '../lib/validators';
 import { Nav } from '../components/Nav';
 import { Stepper } from '../components/inscricao/Stepper';
+import { CriancasEditor } from '../components/inscricao/CriancasEditor';
+import { ConsultaInscricao } from '../components/inscricao/ConsultaInscricao';
 import { Turnstile } from '../components/inscricao/Turnstile';
 import { TextField, ChoiceField, FileField } from '../components/inscricao/fields';
 
-type Fase = 'form' | 'declined' | 'already' | 'success';
+type Fase = 'form' | 'declined' | 'already' | 'success' | 'consulta';
 type Errors = Record<string, string>;
 
 // Etapas (CPF PRIMEIRO — antes da LGPD e de qualquer dado).
@@ -388,17 +387,8 @@ export function InscricaoPage() {
       }
       if (form.cidade.trim().length < 2) e.cidade = 'Informe sua cidade.';
     } else if (step === S.CRIANCAS) {
-      if (form.criancas.length === 0) {
-        e.criancas = 'Cadastre pelo menos uma criança.';
-      }
-      form.criancas.forEach((c, i) => {
-        const nome = c.nome.trim();
-        if (nome.length < NOME_CRIANCA_MIN || nome.length > NOME_CRIANCA_MAX) {
-          e[`crianca_${i}_nome`] = `Informe o nome da criança (de ${NOME_CRIANCA_MIN} a ${NOME_CRIANCA_MAX} caracteres).`;
-        }
-        if (!c.vinculo) e[`crianca_${i}_vinculo`] = 'Selecione o vínculo.';
-        if (!c.faixaEtaria) e[`crianca_${i}_faixaEtaria`] = 'Selecione a faixa etária.';
-      });
+      // Mesmas regras da edição pela consulta (types/inscricao.ts).
+      Object.assign(e, validarCriancas(form.criancas));
     } else if (step === S.SINDICAL) {
       if (!form.querSindicalizar) e.querSindicalizar = 'Selecione uma opção.';
     } else if (step === S.EMPRESA) {
@@ -712,6 +702,23 @@ export function InscricaoPage() {
     );
   }
 
+  // Consulta/edição da inscrição existente. Vive num componente próprio: é um
+  // fluxo com etapas e chamadas próprias, que só compartilha a casca e o CPF.
+  if (fase === 'consulta') {
+    return (
+      <Shell evento={evento}>
+        <ConsultaInscricao
+          evento={evento}
+          cpf={form.cpf}
+          onSair={() => {
+            setFase('already');
+            window.scrollTo(0, 0);
+          }}
+        />
+      </Shell>
+    );
+  }
+
   if (fase === 'already' && jaInscrito) {
     return (
       <Shell evento={evento}>
@@ -726,7 +733,13 @@ export function InscricaoPage() {
             <p className="wz-status-line">Inscrição realizada em {jaInscrito.dataInscricao}.</p>
           )}
           {jaInscrito.status && <p className="wz-status-line">Status: {jaInscrito.status}</p>}
-          <button className="wz-btn" onClick={() => navigate(`/evento/${evento.slug}`)}>
+          <button className="wz-btn" onClick={() => setFase('consulta')}>
+            Ver minha inscrição
+          </button>
+          <button
+            className="wz-btn-ghost wz-final-alt"
+            onClick={() => navigate(`/evento/${evento.slug}`)}
+          >
             Voltar ao evento
           </button>
         </div>
@@ -950,55 +963,13 @@ export function InscricaoPage() {
               0 a 15 anos, no limite de {MAX_CRIANCAS} crianças por inscrição.
             </p>
 
-            {form.criancas.map((c, i) => (
-              <div className="wz-crianca" key={i}>
-                <div className="wz-crianca-head">
-                  <span className="wz-crianca-num">Criança {i + 1}</span>
-                  {i > 0 && (
-                    <button
-                      type="button"
-                      className="wz-crianca-rm"
-                      onClick={() => removerCrianca(i)}
-                    >
-                      Remover
-                    </button>
-                  )}
-                </div>
-                <TextField
-                  label="Nome"
-                  value={c.nome}
-                  onChange={(v) => setCrianca(i, { nome: v })}
-                  placeholder="Nome da criança"
-                  error={errors[`crianca_${i}_nome`]}
-                />
-                <ChoiceField
-                  label="Vínculo"
-                  options={VINCULOS_CRIANCA}
-                  value={c.vinculo}
-                  onChange={(v) => setCrianca(i, { vinculo: v as CriancaForm['vinculo'] })}
-                  error={errors[`crianca_${i}_vinculo`]}
-                />
-                <ChoiceField
-                  label="Faixa etária"
-                  options={FAIXAS_CRIANCA}
-                  value={c.faixaEtaria}
-                  onChange={(v) => setCrianca(i, { faixaEtaria: v as CriancaForm['faixaEtaria'] })}
-                  error={errors[`crianca_${i}_faixaEtaria`]}
-                />
-              </div>
-            ))}
-
-            {errors.criancas && <p className="wz-err wz-err-block">{errors.criancas}</p>}
-
-            {form.criancas.length < MAX_CRIANCAS ? (
-              <button type="button" className="wz-btn-ghost wz-crianca-add" onClick={adicionarCrianca}>
-                + Adicionar outra criança
-              </button>
-            ) : (
-              <p className="wz-note">
-                Você atingiu o limite de <b>{MAX_CRIANCAS} crianças</b> por inscrição.
-              </p>
-            )}
+            <CriancasEditor
+              criancas={form.criancas}
+              errors={errors}
+              onAlterar={setCrianca}
+              onAdicionar={adicionarCrianca}
+              onRemover={removerCrianca}
+            />
           </div>
         )}
 

@@ -7,6 +7,10 @@ import type {
   EnviarOtpResult,
   ValidarOtpResult,
   ContatoPreferido,
+  CriancaForm,
+  SolicitarConsultaResult,
+  VerInscricaoResult,
+  InscricaoConsulta,
 } from '../types/inscricao';
 import { MAX_CRIANCAS } from '../types/inscricao';
 import { onlyDigits } from '../lib/validators';
@@ -213,6 +217,156 @@ export async function validarOtp(
   };
 }
 
+// ---------------------------------------------------------------------------
+// CONSULTA E EDIÇÃO DA INSCRIÇÃO EXISTENTE
+//
+// Caminho de quem JÁ está inscrito e quer rever/alterar os próprios dados.
+// A prova de identidade é o contato usado NA INSCRIÇÃO (não o do cadastro do
+// sindicato): o servidor confere e só então manda o código. Nenhum dado da
+// inscrição sai antes do código validado — por isso ver_inscricao também exige
+// o OTP e devolve `otp_nao_validado` sem ele.
+//
+// Como no wizard, cada chamada consome um token do Turnstile: quem chama
+// renova o desafio entre elas.
+// ---------------------------------------------------------------------------
+
+// Converte a lista de crianças da API (snake_case) para o formato do formulário.
+function lerCriancas(bruto: unknown): CriancaForm[] {
+  if (!Array.isArray(bruto)) return [];
+  return bruto.map((c) => {
+    const item = (c ?? {}) as Record<string, unknown>;
+    return {
+      nome: typeof item.nome === 'string' ? item.nome : '',
+      // Os textos vêm da lista fechada do backend; o cast só reconcilia o tipo.
+      vinculo: (item.vinculo ?? '') as CriancaForm['vinculo'],
+      faixaEtaria: (item.faixa_etaria ?? '') as CriancaForm['faixaEtaria'],
+    };
+  });
+}
+
+// Pede o código para consultar. `contato` é o WhatsApp OU o e-mail informado na
+// inscrição — mandamos como digitado (só sem espaços nas pontas): quem decide
+// qual é, e se confere, é o servidor.
+export async function solicitarConsulta(
+  cpf: string,
+  slug: string,
+  contato: string,
+  turnstileToken: string
+): Promise<SolicitarConsultaResult> {
+  const url = `${apiBase()}/afsys_inscricoes/publico/solicitar_consulta/${slug}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      CPF: onlyDigits(cpf),
+      contato: contato.trim(),
+      turnstile_token: turnstileToken,
+    }),
+  });
+
+  let data: { ok?: boolean; canal?: string; validade_min?: number; error?: string } = {};
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error('resposta_invalida');
+  }
+
+  if (!data.ok) {
+    // contato_nao_confere, procure_sindicato, inscricao_nao_encontrada,
+    // envio_falhou, turnstile_falhou…
+    throw new Error(data.error || 'consulta_falhou');
+  }
+
+  const canal = data.canal === 'whatsapp' || data.canal === 'email' ? data.canal : '';
+  return { canal, validadeMin: Number(data.validade_min) || 0 };
+}
+
+// Traz os dados da inscrição. Só responde depois do código validado.
+export async function verInscricao(
+  cpf: string,
+  slug: string,
+  turnstileToken: string
+): Promise<VerInscricaoResult> {
+  const url = `${apiBase()}/afsys_inscricoes/publico/ver_inscricao/${slug}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ CPF: onlyDigits(cpf), turnstile_token: turnstileToken }),
+  });
+
+  let data: {
+    ok?: boolean;
+    editavel?: boolean;
+    inscricao?: Record<string, unknown>;
+    error?: string;
+  } = {};
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error('resposta_invalida');
+  }
+
+  if (!data.ok || !data.inscricao) {
+    throw new Error(data.error || 'consulta_falhou');
+  }
+
+  const i = data.inscricao;
+  const txt = (v: unknown): string => (typeof v === 'string' ? v : '');
+
+  const inscricao: InscricaoConsulta = {
+    protocolo: txt(i.protocolo),
+    status: txt(i.status),
+    nomeCompleto: txt(i.nome_completo),
+    cpf: txt(i.cpf), // já vem mascarado do servidor
+    whatsapp: txt(i.whatsapp),
+    email: txt(i.email),
+    cidade: txt(i.cidade),
+    empresa: txt(i.empresa),
+    dataInscricao: txt(i.data_inscricao),
+    criancas: lerCriancas(i.criancas),
+  };
+
+  return { editavel: data.editavel === true, inscricao };
+}
+
+// Salva a lista de crianças. É o único campo editável pela consulta.
+export async function editarInscricao(
+  cpf: string,
+  slug: string,
+  criancas: CriancaForm[],
+  turnstileToken: string
+): Promise<CriancaForm[]> {
+  const url = `${apiBase()}/afsys_inscricoes/publico/editar_inscricao/${slug}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      CPF: onlyDigits(cpf),
+      // String JSON, no mesmo formato do submit.
+      CRIANCAS: JSON.stringify(normalizarCriancas(criancas)),
+      turnstile_token: turnstileToken,
+    }),
+  });
+
+  let data: { ok?: boolean; criancas?: unknown; error?: string } = {};
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error('resposta_invalida');
+  }
+
+  if (!data.ok) {
+    // fora_do_periodo, criancas_invalidas, otp_nao_validado…
+    throw new Error(data.error || 'edicao_falhou');
+  }
+
+  // O servidor devolve a lista já normalizada: é ela que passa a valer na tela.
+  return lerCriancas(data.criancas);
+}
+
 // Monta o corpo (multipart) no formato esperado pelo módulo afsys_inscricoes.
 // Os campos *_AFSYS e os de data/registro são anexados pelo servidor; aqui vão
 // só os coletados. Os nomes NÃO podem ser renomeados (o backend lê $_POST com
@@ -264,9 +418,11 @@ function montarCamposPendencia(
 
 // Crianças prontas para o payload: só as completas, com os rótulos exatos que a
 // validação server-side espera, e no máximo MAX_CRIANCAS (o backend recusa mais
-// que isso com `criancas_invalidas`).
-function montarCriancas(form: InscricaoForm): { nome: string; vinculo: string; faixa_etaria: string }[] {
-  return form.criancas
+// que isso com `criancas_invalidas`). Vale para o submit e para a edição.
+function normalizarCriancas(
+  criancas: CriancaForm[]
+): { nome: string; vinculo: string; faixa_etaria: string }[] {
+  return criancas
     .filter((c) => c.nome.trim() !== '' && c.vinculo !== '' && c.faixaEtaria !== '')
     .slice(0, MAX_CRIANCAS)
     .map((c) => ({
@@ -274,6 +430,10 @@ function montarCriancas(form: InscricaoForm): { nome: string; vinculo: string; f
       vinculo: c.vinculo,
       faixa_etaria: c.faixaEtaria,
     }));
+}
+
+function montarCriancas(form: InscricaoForm) {
+  return normalizarCriancas(form.criancas);
 }
 
 // Submit final — multipart/form-data. O arquivo do holerite vai no campo `file`

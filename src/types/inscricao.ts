@@ -32,6 +32,26 @@ export function novaCrianca(): CriancaForm {
   return { nome: '', vinculo: '', faixaEtaria: '' };
 }
 
+// Valida a lista de crianças. Devolve os erros indexados por posição+campo
+// (`crianca_0_nome`), no mesmo formato que o wizard usa. Fica aqui, junto dos
+// limites que ela cobra, porque a etapa do wizard E a edição pela consulta
+// aplicam exatamente as mesmas regras.
+export function validarCriancas(criancas: CriancaForm[]): Record<string, string> {
+  const e: Record<string, string> = {};
+  if (criancas.length === 0) {
+    e.criancas = 'Cadastre pelo menos uma criança.';
+  }
+  criancas.forEach((c, i) => {
+    const nome = c.nome.trim();
+    if (nome.length < NOME_CRIANCA_MIN || nome.length > NOME_CRIANCA_MAX) {
+      e[`crianca_${i}_nome`] = `Informe o nome da criança (de ${NOME_CRIANCA_MIN} a ${NOME_CRIANCA_MAX} caracteres).`;
+    }
+    if (!c.vinculo) e[`crianca_${i}_vinculo`] = 'Selecione o vínculo.';
+    if (!c.faixaEtaria) e[`crianca_${i}_faixaEtaria`] = 'Selecione a faixa etária.';
+  });
+  return e;
+}
+
 export interface InscricaoForm {
   lgpd: boolean;              // aceite LGPD (true = "Autorizo")
   cpf: string;               // mascarado: 000.000.000-00
@@ -121,6 +141,33 @@ export interface ValidarOtpResult {
   ok: boolean;
   erro?: string;
   restantes?: number;
+}
+
+// ----- Consulta/edição da inscrição existente -----
+// Espelha o que `publico/ver_inscricao` devolve. O CPF vem MASCARADO pelo
+// servidor (ex.: "123.***.***-01") — é assim que exibimos.
+export interface InscricaoConsulta {
+  protocolo: string;
+  status: string;
+  nomeCompleto: string;
+  cpf: string;
+  whatsapp: string;
+  email: string;
+  cidade: string;
+  empresa: string;
+  dataInscricao: string;
+  criancas: CriancaForm[];
+}
+
+export interface VerInscricaoResult {
+  // false quando o período de inscrição terminou: a tela fica só de leitura.
+  editavel: boolean;
+  inscricao: InscricaoConsulta;
+}
+
+export interface SolicitarConsultaResult {
+  canal: ContatoPreferido | '';
+  validadeMin: number;
 }
 
 export interface SubmitResult {
