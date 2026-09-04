@@ -1313,6 +1313,8 @@ function Shell({
 function periodoInscricoes(evento: Evento): string | null {
   const insc = evento.metas.find((m) => /inscri/i.test(m.k));
   if (!insc) return null;
+  // Já vem com ano no próprio texto (ex.: "04/09/2026 — 25/09/2026"): usa como está.
+  if (/\d{2}\/\d{2}\/\d{4}/.test(insc.v)) return insc.v;
   const ano = evento.metas.map((m) => m.v).join(' ').match(/\b(20\d{2})\b/)?.[1];
   if (!ano) return insc.v;
   // acrescenta /ano a cada "dd/mm" que ainda não tenha ano
