@@ -35,6 +35,11 @@ export function CriancasEditor({
 }: Props) {
   return (
     <>
+      <p className="wz-note wz-crianca-aviso">
+        <b>Atenção:</b> na retirada do prêmio, será obrigatório apresentar documento que comprove
+        o parentesco com a criança inscrita.
+      </p>
+
       {criancas.map((c, i) => (
         <div className="wz-crianca" key={i}>
           <div className="wz-crianca-head">

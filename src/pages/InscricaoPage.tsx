@@ -958,11 +958,6 @@ export function InscricaoPage() {
         {step === S.CRIANCAS && (
           <div className="wz-step-body">
             <h3 className="wz-step-title">Crianças</h3>
-            <p className="wz-lgpd">
-              Informe quem você quer inscrever. São aceitos filhos, netos e outros dependentes de
-              0 a 15 anos, no limite de {MAX_CRIANCAS} crianças por inscrição.
-            </p>
-
             <CriancasEditor
               criancas={form.criancas}
               errors={errors}

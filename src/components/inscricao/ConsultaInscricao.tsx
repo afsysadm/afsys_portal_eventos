@@ -3,6 +3,7 @@ import type { Evento } from '../../types';
 import type { CriancaForm, InscricaoConsulta } from '../../types/inscricao';
 import {
   novaCrianca,
+  comVinculoValido,
   validarCriancas,
   MAX_CRIANCAS,
   OTP_TAMANHO,
@@ -191,7 +192,9 @@ export function ConsultaInscricao({ evento, cpf, onSair }: Props) {
       const r = await verInscricao(cpf, evento.slug, tk);
       setDados(r.inscricao);
       setEditavel(r.editavel);
-      setCriancas(r.inscricao.criancas);
+      // Só na edição: na tela de leitura o vínculo gravado continua aparecendo
+      // como está (ver comVinculoValido).
+      setCriancas(r.editavel ? r.inscricao.criancas.map(comVinculoValido) : r.inscricao.criancas);
       setErrosCriancas({});
       setEtapa('dados');
       setAviso('');

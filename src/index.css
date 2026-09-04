@@ -308,12 +308,15 @@ footer{border-top:1px solid var(--line);padding:40px 0 34px;background:var(--bg-
 
 /* crianças/dependentes — mesma moldura das caixas do wizard, só para separar
    visualmente uma criança da outra */
-.wz-crianca{border:1px solid var(--line);border-radius:12px;padding:16px 16px 2px;margin-bottom:14px;background:var(--bg-alt)}
+.wz-crianca{border:1px solid var(--line);border-radius:12px;padding:16px 16px 2px;margin-bottom:24px;background:var(--bg-alt)}
 .wz-crianca-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .wz-crianca-num{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .wz-crianca-rm{background:transparent;border:none;color:#DC2626;font-family:var(--ui);font-size:13px;font-weight:600;cursor:pointer;padding:4px 2px}
 .wz-crianca-rm:hover{text-decoration:underline}
 .wz-crianca-add{width:100%;margin-top:2px}
+/* Aviso do editor de crianças: mesma caixa .wz-note, só que ancorada ACIMA dos
+   cartões — o respiro vai embaixo, não em cima. */
+.wz-crianca-aviso{margin-top:0;margin-bottom:16px}
 
 /* revisão */
 .wz-review{list-style:none;display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}

@@ -12,10 +12,10 @@ export type ContatoPreferido = 'whatsapp' | 'email';
 // ----- Crianças/dependentes (eventos com `pedeCriancas`) -----
 // Os textos abaixo são enviados ao backend EXATAMENTE como estão: a validação
 // server-side compara com esta lista fechada.
-export type VinculoCrianca = 'Filho(a)' | 'Neto(a)' | 'Outro(a)';
+export type VinculoCrianca = 'Filho(a)' | 'Neto(a)' | 'Enteado(a)';
 export type FaixaEtariaCrianca = '0 a 4 anos' | '5 a 9 anos' | '10 a 15 anos';
 
-export const VINCULOS_CRIANCA: VinculoCrianca[] = ['Filho(a)', 'Neto(a)', 'Outro(a)'];
+export const VINCULOS_CRIANCA: VinculoCrianca[] = ['Filho(a)', 'Neto(a)', 'Enteado(a)'];
 export const FAIXAS_CRIANCA: FaixaEtariaCrianca[] = ['0 a 4 anos', '5 a 9 anos', '10 a 15 anos'];
 
 export const MAX_CRIANCAS = 10;
@@ -30,6 +30,15 @@ export interface CriancaForm {
 
 export function novaCrianca(): CriancaForm {
   return { nome: '', vinculo: '', faixaEtaria: '' };
+}
+
+// 'Outro(a)' saiu da lista de vínculos, mas inscrições antigas ficaram gravadas
+// com esse valor e o backend continua aceitando-o para não invalidá-las. Ao
+// abrir uma dessas para edição o campo apontaria para uma opção que não existe
+// mais: zeramos o vínculo e a pessoa escolhe de novo antes de salvar.
+export function comVinculoValido(crianca: CriancaForm): CriancaForm {
+  if (crianca.vinculo === '' || VINCULOS_CRIANCA.includes(crianca.vinculo)) return crianca;
+  return { ...crianca, vinculo: '' };
 }
 
 // Valida a lista de crianças. Devolve os erros indexados por posição+campo
