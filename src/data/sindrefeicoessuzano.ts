@@ -26,7 +26,7 @@ export const EVENTOS: Evento[] = [
     // não recebem a flag.
     pedeCriancas: true,
     metas: [
-      { k: 'Inscrições', v: '05/09/2026 — 25/09/2026' },
+      { k: 'Inscrições', v: '04/09/2026 — 25/09/2026' },
       { k: 'Sorteio', v: '07 out 2026' },
       { k: 'Local', v: 'Suzano/SP', ph: true },
     ],
@@ -39,7 +39,7 @@ export const EVENTOS: Evento[] = [
         'A ação é aberta aos trabalhadores em refeições coletivas, cozinhas industriais, merenda escolar e comissária aérea da base do sindicato.',
       ],
       resumo: [
-        { k: 'Inscrições', v: '05/09/2026 — 25/09/2026' },
+        { k: 'Inscrições', v: '04/09/2026 — 25/09/2026' },
         { k: 'Sorteio', v: '07 out 2026' },
         { k: 'Local', v: 'Suzano/SP', ph: true },
         { k: 'Categorias', v: '0 a 4 · 5 a 9 · 10 a 15 anos' },
