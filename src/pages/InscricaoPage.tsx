@@ -2,12 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import type { Evento } from '../types';
-import type { InscricaoForm, SubmitResult, CpfCheckResult, CriancaForm } from '../types/inscricao';
+import type {
+  InscricaoForm,
+  SubmitResult,
+  CpfCheckResult,
+  CriancaForm,
+  ContatoPreferido,
+} from '../types/inscricao';
 import {
   novoForm,
   novaCrianca,
   MAX_CRIANCAS,
   OTP_TAMANHO,
+  CANAIS_OTP_PADRAO,
   validarCriancas,
 } from '../types/inscricao';
 import { getEvento } from '../services/events';
@@ -111,7 +118,12 @@ const MSG_CHECAR: Record<string, string> = {
 };
 // Erros da etapa de verificação (enviar_otp / validar_otp).
 const MSG_OTP: Record<string, string> = {
-  canal_invalido: 'Canal inválido. Escolha WhatsApp ou e-mail.',
+  // O sindicato desligou o canal na configuração do evento (foi o caso do
+  // WhatsApp). A tela já só oferece os habilitados; a mensagem cobre a corrida
+  // de alguém que estava com a tela aberta quando a configuração mudou.
+  canal_desabilitado:
+    'Este canal não está mais disponível para este evento. Recomece a inscrição para usar o canal habilitado.',
+  canal_invalido: 'Canal inválido para este evento. Use o canal indicado nesta tela.',
   envio_falhou:
     'Não foi possível enviar o código agora. Tente novamente ou escolha outro canal.',
   turnstile_falhou: 'A verificação de segurança falhou. Refaça a verificação e tente novamente.',
@@ -176,6 +188,15 @@ export function InscricaoPage() {
   const [sindicalizado, setSindicalizado] = useState(false);
   // Isenção de holerite (empresa na lista do sindicato): tira a etapa Holerite.
   const [isentoHolerite, setIsentoHolerite] = useState(false);
+
+  // Canais de OTP habilitados NESTE evento, vindos da checagem do CPF. Só eles
+  // são oferecidos: o backend recusa os demais com `canal_desabilitado`. Até a
+  // checagem responder valem os dois (nenhuma tela de escolha aparece antes).
+  const [canaisOtp, setCanaisOtp] = useState<ContatoPreferido[]>(CANAIS_OTP_PADRAO);
+  // "Não tenho e-mail": saída para quem não consegue receber o código porque o
+  // e-mail é o único canal habilitado. A inscrição é enviada com EMAIL vazio e
+  // sem OTP — o backend grava pendente de validação e o sindicato confere.
+  const [semEmail, setSemEmail] = useState(false);
 
   // ---- etapa de verificação (OTP) ----
   // Um único Turnstile atende as três chamadas da etapa (enviar, validar e o
@@ -252,6 +273,12 @@ export function InscricaoPage() {
   // Canal escolhido para receber o código, e se o cadastro tem algum contato
   // para mostrar mascarado (sem nenhum, a etapa aparece como sempre foi).
   const prefereEmail = form.contatoPreferido === 'email';
+  // Com os dois canais habilitados, a pessoa escolhe (comportamento de sempre).
+  // Com um só, não há o que escolher: a tela vai direto ao campo dele.
+  const escolheCanal = canaisOtp.length > 1;
+  // E-mail como ÚNICO canal é o caso que exige a saída "Não tenho e-mail":
+  // sem ele a pessoa não receberia o código e ficaria impedida de se inscrever.
+  const soEmail = !escolheCanal && canaisOtp[0] === 'email';
   const temContatosMasc = !!(contatosMasc.whatsapp || contatosMasc.email);
   // Holerite pulado por "sem CNPJ" continua na régua, apenas marcado. Quando a
   // etapa nem existe (isento), não há o que marcar.
@@ -294,6 +321,15 @@ export function InscricaoPage() {
     setErrors({});
   }
 
+  // Guarda os canais habilitados e mantém a preferência dentro deles: com um
+  // único canal habilitado é ele que passa a valer, sem perguntar nada.
+  function aplicarCanais(canais?: ContatoPreferido[]) {
+    const lista = canais && canais.length > 0 ? canais : CANAIS_OTP_PADRAO;
+    setCanaisOtp(lista);
+    setSemEmail(false);
+    setForm((f) => (lista.includes(f.contatoPreferido) ? f : { ...f, contatoPreferido: lista[0] }));
+  }
+
   function renovarCpfTurnstile() {
     setCpfToken('');
     setCpfResetKey((k) => k + 1);
@@ -314,6 +350,10 @@ export function InscricaoPage() {
       setForm((f) => ({ ...f, temCnpj: '', cnpj: '', empresaNome: '' }));
     }
     setIsentoHolerite(false);
+    // Os canais são do evento, mas quem os traz é a checagem: sem ela, volta ao
+    // padrão — e nenhuma escolha de canal aparece antes da próxima checagem.
+    setCanaisOtp(CANAIS_OTP_PADRAO);
+    setSemEmail(false);
     setErroCpf('');
     renovarCpfTurnstile();
   }
@@ -365,25 +405,28 @@ export function InscricaoPage() {
       if (!isValidCPF(form.cpf)) e.cpf = 'Informe um CPF válido.';
     } else if (step === S.DADOS) {
       if (form.nomeCompleto.trim().length < 3) e.nomeCompleto = 'Informe seu nome completo.';
-      // Obrigatório é o canal escolhido para receber o código; o outro segue
-      // opcional, mas se preenchido precisa ter formato válido. NÃO conferimos
-      // aqui contra a máscara do cadastro — divergência é tratada no servidor.
-      if (prefereEmail) {
+      // Obrigatório é o canal HABILITADO em que a pessoa vai receber o código;
+      // o outro segue opcional, mas se preenchido precisa ter formato válido.
+      // NÃO conferimos aqui contra a máscara do cadastro — divergência é tratada
+      // no servidor. Exceção: quem marcou "Não tenho e-mail" (só possível quando
+      // o e-mail é o único canal) não tem canal para receber o código, então
+      // nenhum contato é exigido — a inscrição vai para conferência do sindicato.
+      const exigeEmail = prefereEmail && !semEmail;
+      if (exigeEmail) {
         if (form.email.trim() === '') {
           e.email = 'Informe o e-mail onde você quer receber o código.';
         } else if (!isValidEmail(form.email)) {
           e.email = 'Informe um e-mail válido.';
         }
-        if (form.whatsapp.trim() !== '' && !isValidPhone(form.whatsapp)) {
-          e.whatsapp = 'Informe um WhatsApp válido com DDD.';
-        }
-      } else {
+      } else if (form.email.trim() !== '' && !isValidEmail(form.email)) {
+        e.email = 'Informe um e-mail válido.';
+      }
+      if (!prefereEmail) {
         if (!isValidPhone(form.whatsapp)) {
           e.whatsapp = 'Informe o WhatsApp onde você quer receber o código, com DDD.';
         }
-        if (form.email.trim() !== '' && !isValidEmail(form.email)) {
-          e.email = 'Informe um e-mail válido.';
-        }
+      } else if (form.whatsapp.trim() !== '' && !isValidPhone(form.whatsapp)) {
+        e.whatsapp = 'Informe um WhatsApp válido com DDD.';
       }
       if (form.cidade.trim().length < 2) e.cidade = 'Informe sua cidade.';
     } else if (step === S.CRIANCAS) {
@@ -433,12 +476,16 @@ export function InscricaoPage() {
           // (marcamos lgpd=true só por consistência local — não é reenviado).
           setCompletando(r.pendencia);
           setPendProtocolo(r.protocolo || '');
+          aplicarCanais(r.canaisOtp);
           setForm((f) => ({ ...f, lgpd: true }));
           setStep(r.pendencia === 'cnpj' ? S.EMPRESA : S.HOLERITE);
           window.scrollTo(0, 0);
           return;
         }
         setContatosMasc({ whatsapp: r.whatsappMasc || '', email: r.emailMasc || '' });
+        // Canais habilitados no evento: com um só, ele já vira a preferência e
+        // nenhuma escolha é apresentada daqui para a frente.
+        aplicarCanais(r.canaisOtp);
 
         // Sindicalizado: Contribuinte e Empresa saem do wizard, e o que elas
         // coletariam vem da base. Sem CNPJ/empresa na resposta, o campo fica
@@ -572,6 +619,26 @@ export function InscricaoPage() {
     setOtpErro('');
     setOtpAviso('');
     setOtpValidado(false);
+  }
+
+  // Caminho "Não tenho e-mail" — só existe quando o e-mail é o único canal
+  // habilitado. Zera o e-mail (o submit vai com EMAIL vazio) e desarma a etapa
+  // de código: a inscrição é enviada sem OTP, pendente da conferência do
+  // sindicato.
+  function marcarSemEmail() {
+    setSemEmail(true);
+    set('email', '');
+    setOtpFase('envio');
+    setOtpCodigo('');
+    setOtpErro('');
+    setOtpAviso('');
+    setOtpValidado(false);
+  }
+
+  function voltarAoEmail() {
+    setSemEmail(false);
+    setOtpErro('');
+    setOtpAviso('');
   }
 
   async function pedirCodigo(reenvio: boolean) {
@@ -750,21 +817,31 @@ export function InscricaoPage() {
   if (fase === 'success' && result) {
     const pendente =
       result.status === 'PENDENTE HOLERITE' || result.status === 'PENDENCIA CNPJ';
+    // Sem e-mail não houve verificação por código: a inscrição fica aguardando a
+    // conferência do sindicato, e a tela não pode prometer confirmação automática.
     const msg =
       result.status === 'PENDENTE HOLERITE'
         ? 'Recebemos seus dados. Falta apenas o holerite para concluir — você pode enviá-lo depois, sem pressa.'
         : result.status === 'PENDENCIA CNPJ'
         ? 'Recebemos seus dados. Sua inscrição ficou com pendência de CNPJ — assim que tiver o CNPJ, é só nos enviar.'
+        : semEmail
+        ? 'Recebemos sua inscrição. Como você não tem e-mail, não foi possível enviar o código de verificação: o sindicato vai conferir seus dados antes de confirmar.'
         : 'Inscrição confirmada! Nos vemos no evento.';
     return (
       <Shell evento={evento}>
         <div className="wz-final">
-          <div className="wz-final-ico">{pendente ? '📝' : '🎉'}</div>
+          <div className="wz-final-ico">{pendente || semEmail ? '📝' : '🎉'}</div>
           <h2>{evento.titulo}</h2>
           {result.protocolo && (
             <div className="wz-proto">Protocolo: <b>{result.protocolo}</b></div>
           )}
           <p className="wz-status-line">{msg}</p>
+          {semEmail && pendente && (
+            <p className="wz-status-line">
+              Sua inscrição também será conferida pelo sindicato, já que não foi possível enviar o
+              código de verificação.
+            </p>
+          )}
           <button className="wz-btn" onClick={() => navigate('/')}>
             Concluir
           </button>
@@ -785,6 +862,9 @@ export function InscricaoPage() {
       placeholder="(00) 00000-0000"
       inputMode="tel"
       error={errors.whatsapp}
+      hint={
+        semEmail ? 'Sem e-mail, é por aqui que o sindicato vai falar com você.' : undefined
+      }
     />
   );
 
@@ -891,7 +971,9 @@ export function InscricaoPage() {
           <div className="wz-step-body">
             <h3 className="wz-step-title">Seus dados</h3>
             <p className="wz-lgpd">
-              Confirme o contato onde você quer receber o código de verificação.
+              {semEmail
+                ? 'Confirme seus dados. Sem e-mail, sua inscrição será conferida pelo sindicato antes de ser confirmada.'
+                : 'Confirme o contato onde você quer receber o código de verificação.'}
             </p>
             <TextField
               label="Nome completo"
@@ -924,18 +1006,31 @@ export function InscricaoPage() {
               </div>
             )}
 
-            <ChoiceField
-              label="Onde você quer receber o código de verificação?"
-              options={['WhatsApp', 'E-mail']}
-              value={prefereEmail ? 'E-mail' : 'WhatsApp'}
-              onChange={(v) => set('contatoPreferido', v === 'E-mail' ? 'email' : 'whatsapp')}
-            />
+            {/* Com os dois canais habilitados a pessoa escolhe, como sempre foi.
+                Com um só, não há escolha: a tela diz por onde o código vem. */}
+            {escolheCanal ? (
+              <ChoiceField
+                label="Onde você quer receber o código de verificação?"
+                options={['WhatsApp', 'E-mail']}
+                value={prefereEmail ? 'E-mail' : 'WhatsApp'}
+                onChange={(v) => set('contatoPreferido', v === 'E-mail' ? 'email' : 'whatsapp')}
+              />
+            ) : (
+              !semEmail && (
+                <p className="wz-note">
+                  {prefereEmail
+                    ? 'Neste evento o código de verificação é enviado por e-mail.'
+                    : 'Neste evento o código de verificação é enviado pelo WhatsApp.'}
+                </p>
+              )
+            )}
 
             {/* O campo do canal escolhido vem logo abaixo da escolha; o outro
-                continua disponível, como opcional. */}
+                continua disponível, como opcional. Quem marcou "Não tenho
+                e-mail" não vê o campo de e-mail — ele vai vazio no envio. */}
             {prefereEmail ? (
               <>
-                {campoEmail}
+                {!semEmail && campoEmail}
                 {campoWhatsapp}
               </>
             ) : (
@@ -944,6 +1039,25 @@ export function InscricaoPage() {
                 {campoEmail}
               </>
             )}
+
+            {/* Saída para quem não tem e-mail — só quando o e-mail é o ÚNICO
+                canal habilitado. Havendo WhatsApp, a pessoa usa o WhatsApp. */}
+            {soEmail &&
+              (semEmail ? (
+                <>
+                  <p className="wz-note">
+                    Você indicou que <b>não tem e-mail</b>. Sua inscrição será enviada sem o código
+                    de verificação e <b>conferida pelo sindicato</b> antes de ser confirmada.
+                  </p>
+                  <button type="button" className="wz-alt-acao wz-btn-ghost" onClick={voltarAoEmail}>
+                    Tenho e-mail — quero informar
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="wz-alt-acao wz-btn-ghost" onClick={marcarSemEmail}>
+                  Não tenho e-mail
+                </button>
+              ))}
 
             <TextField
               label="Cidade"
@@ -1098,11 +1212,14 @@ export function InscricaoPage() {
                 <Item k="CPF" v={form.cpf} />
                 <Item k="Nome" v={form.nomeCompleto} />
                 <Item k="WhatsApp" v={form.whatsapp} />
-                <Item k="E-mail" v={form.email} />
-                <Item
-                  k="Prefere receber por"
-                  v={form.contatoPreferido === 'email' ? 'E-mail' : 'WhatsApp'}
-                />
+                <Item k="E-mail" v={semEmail ? 'Não tenho e-mail' : form.email} />
+                {/* Com um único canal habilitado não houve preferência a exibir. */}
+                {escolheCanal && (
+                  <Item
+                    k="Prefere receber por"
+                    v={form.contatoPreferido === 'email' ? 'E-mail' : 'WhatsApp'}
+                  />
+                )}
                 <Item k="Cidade" v={form.cidade} />
                 {pedeCriancas &&
                   form.criancas.map((c, i) => (
@@ -1130,7 +1247,9 @@ export function InscricaoPage() {
             )}
 
             <p className="wz-note">
-              No próximo passo enviamos um código para confirmar sua inscrição.
+              {semEmail
+                ? 'Sem e-mail não há como enviar o código. No próximo passo você conclui a inscrição, e o sindicato confere seus dados antes de confirmar.'
+                : 'No próximo passo enviamos um código para confirmar sua inscrição.'}
             </p>
           </div>
         )}
@@ -1138,19 +1257,38 @@ export function InscricaoPage() {
         {step === S.OTP && (
           <div className="wz-step-body">
             <h3 className="wz-step-title">Verificação</h3>
-            <p className="wz-lgpd">
-              Para concluir, enviamos um código de {OTP_TAMANHO} dígitos. Confira o canal e o
-              contato — se estiver errado, corrija aqui.
-            </p>
+            {semEmail ? (
+              <p className="wz-lgpd">
+                Sem e-mail não há como enviar o código de verificação. Podemos concluir sua
+                inscrição assim mesmo: ela será <b>conferida pelo sindicato</b> antes de ser
+                confirmada.
+              </p>
+            ) : (
+              <p className="wz-lgpd">
+                Para concluir, enviamos um código de {OTP_TAMANHO} dígitos. Confira{' '}
+                {escolheCanal ? 'o canal e o contato' : 'o contato'} — se estiver errado, corrija
+                aqui.
+              </p>
+            )}
 
-            <ChoiceField
-              label="Onde receber o código"
-              options={['WhatsApp', 'E-mail']}
-              value={prefereEmail ? 'E-mail' : 'WhatsApp'}
-              onChange={(v) => trocarCanalOtp(v === 'E-mail' ? 'email' : 'whatsapp')}
-            />
+            {/* Só os canais habilitados no evento. Com um só, nada a escolher. */}
+            {!semEmail &&
+              (escolheCanal ? (
+                <ChoiceField
+                  label="Onde receber o código"
+                  options={['WhatsApp', 'E-mail']}
+                  value={prefereEmail ? 'E-mail' : 'WhatsApp'}
+                  onChange={(v) => trocarCanalOtp(v === 'E-mail' ? 'email' : 'whatsapp')}
+                />
+              ) : (
+                <p className="wz-note">
+                  {prefereEmail
+                    ? 'O código será enviado para o seu e-mail.'
+                    : 'O código será enviado pelo seu WhatsApp.'}
+                </p>
+              ))}
 
-            {prefereEmail ? (
+            {semEmail ? null : prefereEmail ? (
               <TextField
                 key="otp-email"
                 label="E-mail"
@@ -1176,7 +1314,7 @@ export function InscricaoPage() {
               />
             )}
 
-            {otpFase === 'codigo' && (
+            {!semEmail && otpFase === 'codigo' && (
               <TextField
                 label="Código recebido"
                 value={otpCodigo}
@@ -1207,7 +1345,17 @@ export function InscricaoPage() {
                 ← Voltar
               </button>
 
-              {otpValidado ? (
+              {semEmail ? (
+                // Sem código: o submit vai com EMAIL vazio e o backend grava a
+                // inscrição pendente de validação pelo sindicato.
+                <button
+                  className="wz-btn"
+                  onClick={() => enviar(otpToken)}
+                  disabled={busy || !otpToken}
+                >
+                  {busy ? 'Concluindo…' : 'Concluir sem código'}
+                </button>
+              ) : otpValidado ? (
                 <button
                   className="wz-btn"
                   onClick={() => enviar(otpToken)}
@@ -1234,13 +1382,26 @@ export function InscricaoPage() {
               )}
             </div>
 
-            {otpFase === 'codigo' && !otpValidado && (
+            {!semEmail && otpFase === 'codigo' && !otpValidado && (
               <button
                 className="wz-btn-ghost wz-reenviar"
                 onClick={() => pedirCodigo(true)}
                 disabled={busy || otpEspera > 0 || !otpToken}
               >
                 {otpEspera > 0 ? `Reenviar código em ${otpEspera}s` : 'Não recebi — reenviar código'}
+              </button>
+            )}
+
+            {/* Saída de quem não tem e-mail: só quando o e-mail é o ÚNICO canal
+                habilitado, e enquanto o código não foi validado. */}
+            {soEmail && !otpValidado && (
+              <button
+                type="button"
+                className="wz-btn-ghost wz-alt-acao"
+                onClick={semEmail ? voltarAoEmail : marcarSemEmail}
+                disabled={busy}
+              >
+                {semEmail ? 'Tenho e-mail — quero receber o código' : 'Não tenho e-mail'}
               </button>
             )}
           </div>

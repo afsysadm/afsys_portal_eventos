@@ -9,6 +9,13 @@ export type SimNao = 'Sim' | 'Não';
 // backend espera em CONTATO_PREFERIDO.
 export type ContatoPreferido = 'whatsapp' | 'email';
 
+// Canais de OTP habilitados no evento (campo `canais_otp` da checagem de CPF).
+// O sindicato pode desligar um canal na configuração do evento — foi o que
+// aconteceu com o WhatsApp — e o backend passa a recusar o envio por ele com
+// `canal_desabilitado`. Quando a resposta não traz a lista (backend antigo) ou
+// ela vem vazia, valem os dois: é o comportamento de sempre.
+export const CANAIS_OTP_PADRAO: ContatoPreferido[] = ['whatsapp', 'email'];
+
 // ----- Crianças/dependentes (eventos com `pedeCriancas`) -----
 // Os textos abaixo são enviados ao backend EXATAMENTE como estão: a validação
 // server-side compara com esta lista fechada.
@@ -133,6 +140,10 @@ export interface CpfCheckResult {
   // Empresa na lista de isentos mantida pelo sindicato: o wizard não pede o
   // holerite. Ausente ou false => fluxo atual. Nada disso aparece na tela.
   isentoHolerite?: boolean;
+  // Canais de OTP habilitados neste evento. Já chega normalizado do serviço:
+  // nunca vazio (cai em CANAIS_OTP_PADRAO) e só com canais conhecidos. O wizard
+  // oferece exatamente estes — nem mais, nem menos.
+  canaisOtp?: ContatoPreferido[];
 }
 
 // ----- Verificação por código (OTP) -----

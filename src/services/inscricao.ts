@@ -12,7 +12,7 @@ import type {
   VerInscricaoResult,
   InscricaoConsulta,
 } from '../types/inscricao';
-import { MAX_CRIANCAS } from '../types/inscricao';
+import { MAX_CRIANCAS, CANAIS_OTP_PADRAO } from '../types/inscricao';
 import { onlyDigits } from '../lib/validators';
 import { apiBase } from '../config';
 
@@ -70,6 +70,7 @@ export async function checarCpf(
     cnpj_afsys?: string | null;
     empresa_afsys?: string | null;
     isento_holerite?: boolean | null;
+    canais_otp?: unknown;
     error?: string;
   } = {};
   try {
@@ -101,6 +102,9 @@ export async function checarCpf(
   // pula a etapa; campo ausente — backend antigo — mantém o fluxo atual.
   const isentoHolerite = data.isento_holerite === true;
 
+  // Canais de OTP habilitados no evento.
+  const canaisOtp = lerCanaisOtp(data.canais_otp);
+
   // Inscrição completa (INSCRITO) → bloqueia com a tela "já inscrito".
   if (data.ja_inscrito) {
     return {
@@ -121,6 +125,9 @@ export async function checarCpf(
       id: data.id,
       protocolo: data.protocolo,
       dataInscricao: data.data_inscricao ?? null,
+      // Completar a pendência também passa pela etapa de verificação: os canais
+      // habilitados precisam vir junto.
+      canaisOtp,
     };
   }
 
@@ -133,7 +140,17 @@ export async function checarCpf(
     cnpjAfsys,
     empresaAfsys,
     isentoHolerite,
+    canaisOtp,
   };
+}
+
+// Lê `canais_otp` da checagem: descarta o que não for canal conhecido e cai no
+// padrão (os dois) quando a lista vem ausente, vazia ou toda inválida — assim
+// um backend sem o campo continua se comportando como antes.
+function lerCanaisOtp(bruto: unknown): ContatoPreferido[] {
+  if (!Array.isArray(bruto)) return CANAIS_OTP_PADRAO;
+  const canais = CANAIS_OTP_PADRAO.filter((c) => bruto.includes(c));
+  return canais.length > 0 ? canais : CANAIS_OTP_PADRAO;
 }
 
 // ---------------------------------------------------------------------------
@@ -174,7 +191,8 @@ export async function enviarOtp(
   }
 
   if (!data.ok) {
-    // canal_invalido, envio_falhou, turnstile_falhou, cpf_invalido…
+    // canal_desabilitado (canal desligado no evento), canal_invalido,
+    // envio_falhou, turnstile_falhou, cpf_invalido…
     throw new Error(data.error || 'envio_falhou');
   }
 

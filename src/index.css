@@ -355,5 +355,9 @@ footer{border-top:1px solid var(--line);padding:40px 0 34px;background:var(--bg-
 /* reenviar o código: ação secundária, abaixo da navegação da etapa */
 .wz-reenviar{width:100%;margin-top:12px}
 
+/* saída alternativa da etapa (ex.: "Não tenho e-mail") — mesma largura do
+   reenviar, para ler como ação secundária e não como o botão principal */
+.wz-alt-acao{width:100%;margin:12px 0 18px}
+
 .wz-hello{margin-top:16px;font-size:14px;line-height:1.55}
 .wz-hello b{display:block;font-weight:700;font-size:14.5px;margin-bottom:2px}
