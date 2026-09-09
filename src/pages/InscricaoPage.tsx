@@ -8,6 +8,7 @@ import type {
   CpfCheckResult,
   CriancaForm,
   ContatoPreferido,
+  ChaveEtapa,
 } from '../types/inscricao';
 import {
   novoForm,
@@ -31,6 +32,7 @@ import {
   isValidEmail,
   validarHolerite,
 } from '../lib/validators';
+import { lerRascunho, salvarRascunho, limparRascunho } from '../lib/rascunhoInscricao';
 import { Nav } from '../components/Nav';
 import { Stepper } from '../components/inscricao/Stepper';
 import { CriancasEditor } from '../components/inscricao/CriancasEditor';
@@ -54,16 +56,8 @@ type Errors = Record<string, string>;
 //  - "Holerite" some para quem é `isentoHolerite` (empresa na lista do
 //    sindicato). Nada é dito na tela: a etapa simplesmente não existe.
 // "Verificação" é sempre a última: a inscrição só é enviada depois do código.
-type ChaveEtapa =
-  | 'CPF'
-  | 'LGPD'
-  | 'DADOS'
-  | 'CRIANCAS'
-  | 'SINDICAL'
-  | 'EMPRESA'
-  | 'HOLERITE'
-  | 'REVISAO'
-  | 'OTP';
+// As chaves das etapas vivem em types/inscricao.ts, porque o rascunho salvo
+// também aponta a etapa por chave.
 
 // A etapa de CPF é sempre a primeira, com ou sem a etapa de crianças.
 const ETAPA_CPF = 0;
@@ -146,11 +140,26 @@ export function InscricaoPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
 
+  // Rascunho da aba (sessionStorage), lido UMA vez, antes do primeiro render:
+  // é o que devolve o preenchimento de quem saiu para buscar o código no app de
+  // e-mail e voltou com a página recarregada pelo sistema. Null quando não há
+  // rascunho, quando ele é de outro evento ou quando o navegador não deixa ler.
+  const [rascunho] = useState(() => (slug ? lerRascunho(slug) : null));
+  // Falso quando a gravação falha (modo privado, cota, navegador restritivo):
+  // aí a tela não promete que os dados ficam salvos.
+  const [rascunhoAtivo, setRascunhoAtivo] = useState(true);
+
   const [evento, setEvento] = useState<Evento | null | undefined>(undefined);
   // Janela de inscrições (status_portal do backend); null = ainda carregando.
   const [aberto, setAberto] = useState<boolean | null>(null);
   const [step, setStep] = useState(ETAPA_CPF);
-  const [form, setForm] = useState<InscricaoForm>(novoForm());
+  // Etapa salva no rascunho, ainda por reencontrar: as etapas são montadas
+  // depois que o evento carrega, então a volta ao passo certo espera por isso.
+  const [etapaSalva, setEtapaSalva] = useState<ChaveEtapa | null>(rascunho?.etapa ?? null);
+  // O anexo do holerite não é serializável e ficou para trás no recarregamento:
+  // a etapa do Holerite avisa e pede o arquivo de novo.
+  const [avisoHolerite, setAvisoHolerite] = useState(rascunho?.arquivoHolerite === true);
+  const [form, setForm] = useState<InscricaoForm>(() => rascunho?.form ?? novoForm());
   const [errors, setErrors] = useState<Errors>({});
   const [fase, setFase] = useState<Fase>('form');
   const [busy, setBusy] = useState(false);
@@ -160,8 +169,10 @@ export function InscricaoPage() {
   // Modo "completar pendência": quando o CPF já tem inscrição incompleta, o
   // wizard retoma no passo que falta (cnpj → Empresa, holerite → Holerite) e o
   // submit envia só o que falta (ver services/inscricao.ts).
-  const [completando, setCompletando] = useState<'cnpj' | 'holerite' | null>(null);
-  const [pendProtocolo, setPendProtocolo] = useState('');
+  const [completando, setCompletando] = useState<'cnpj' | 'holerite' | null>(
+    rascunho?.completando ?? null
+  );
+  const [pendProtocolo, setPendProtocolo] = useState(rascunho?.pendProtocolo ?? '');
 
   // Turnstile: um token para checar_cpf (etapa CPF) e outro para o submit
   // (etapa Revisão). Ambos são de uso único, por isso são independentes.
@@ -174,29 +185,33 @@ export function InscricaoPage() {
   // avançar; `cpfChecado` guarda os dígitos já checados para (a) não repetir a
   // chamada no clique seguinte — o token do Turnstile é de uso único — e (b)
   // apagar a saudação assim que o CPF digitado mudar.
-  const [nomeAfsys, setNomeAfsys] = useState('');
-  const [cpfChecado, setCpfChecado] = useState('');
+  const [nomeAfsys, setNomeAfsys] = useState(rascunho?.nomeAfsys ?? '');
+  const [cpfChecado, setCpfChecado] = useState(rascunho?.cpfChecado ?? '');
 
   // Contatos mascarados do cadastro (mesma resposta da checagem). Exibidos na
   // etapa de contato para a pessoa reconhecer onde pode receber o código. Nunca
   // são comparados aqui com o que ela digita — quem confere é o servidor.
-  const [contatosMasc, setContatosMasc] = useState({ whatsapp: '', email: '' });
+  const [contatosMasc, setContatosMasc] = useState(
+    rascunho?.contatosMasc ?? { whatsapp: '', email: '' }
+  );
 
   // Sindicalizado na base do sindicato: tira as etapas de Contribuinte e
   // Empresa do wizard (os dados vêm da própria checagem). O Holerite continua
   // sendo pedido normalmente.
-  const [sindicalizado, setSindicalizado] = useState(false);
+  const [sindicalizado, setSindicalizado] = useState(rascunho?.sindicalizado === true);
   // Isenção de holerite (empresa na lista do sindicato): tira a etapa Holerite.
-  const [isentoHolerite, setIsentoHolerite] = useState(false);
+  const [isentoHolerite, setIsentoHolerite] = useState(rascunho?.isentoHolerite === true);
 
   // Canais de OTP habilitados NESTE evento, vindos da checagem do CPF. Só eles
   // são oferecidos: o backend recusa os demais com `canal_desabilitado`. Até a
   // checagem responder valem os dois (nenhuma tela de escolha aparece antes).
-  const [canaisOtp, setCanaisOtp] = useState<ContatoPreferido[]>(CANAIS_OTP_PADRAO);
+  const [canaisOtp, setCanaisOtp] = useState<ContatoPreferido[]>(
+    rascunho?.canaisOtp ?? CANAIS_OTP_PADRAO
+  );
   // "Não tenho e-mail": saída para quem não consegue receber o código porque o
   // e-mail é o único canal habilitado. A inscrição é enviada com EMAIL vazio e
   // sem OTP — o backend grava pendente de validação e o sindicato confere.
-  const [semEmail, setSemEmail] = useState(false);
+  const [semEmail, setSemEmail] = useState(rascunho?.semEmail === true);
 
   // ---- etapa de verificação (OTP) ----
   // Um único Turnstile atende as três chamadas da etapa (enviar, validar e o
@@ -287,6 +302,69 @@ export function InscricaoPage() {
     [semCnpj, S]
   );
 
+  // Volta ao passo onde a pessoa estava. A etapa é reencontrada pela CHAVE, não
+  // pelo índice, porque o índice depende de quais etapas condicionais existem —
+  // e elas só são conhecidas depois que o evento carrega.
+  useEffect(() => {
+    if (!etapaSalva || evento === undefined || aberto === null) return;
+    const alvo = S[etapaSalva];
+    setEtapaSalva(null);
+    // Etapa que não existe nesta montagem (rascunho velho, evento reconfigurado):
+    // recomeçar pelo CPF é melhor que parar num passo inválido.
+    if (alvo < 0) return;
+    // O arquivo do holerite não atravessa o recarregamento. Em vez de concluir
+    // em silêncio uma inscrição que perdeu o anexo, volta para a etapa dele.
+    if (avisoHolerite && S.HOLERITE >= 0 && alvo > S.HOLERITE) {
+      setStep(S.HOLERITE);
+      return;
+    }
+    setStep(alvo);
+  }, [etapaSalva, evento, aberto, S, avisoHolerite]);
+
+  // Grava o rascunho a cada mudança do que importa. Só enquanto o wizard está de
+  // fato em preenchimento: desfechos (sucesso, já inscrito, recusa da LGPD)
+  // apagam o rascunho, e enquanto a etapa salva não foi reencontrada o `step`
+  // ainda é o inicial — gravar aqui apagaria justamente o passo a restaurar.
+  useEffect(() => {
+    if (!slug || fase !== 'form' || etapaSalva) return;
+    // Sem CPF não há preenchimento que valha a pena guardar.
+    if (form.cpf.trim() === '') return;
+    const etapa = (Object.keys(S) as ChaveEtapa[]).find((chave) => S[chave] === step);
+    if (!etapa) return;
+    const gravou = salvarRascunho({
+      slug,
+      etapa,
+      form,
+      arquivoHolerite: form.holeriteArquivo !== null,
+      cpfChecado,
+      nomeAfsys,
+      contatosMasc,
+      sindicalizado,
+      isentoHolerite,
+      canaisOtp,
+      semEmail,
+      completando,
+      pendProtocolo,
+    });
+    if (!gravou) setRascunhoAtivo(false);
+  }, [
+    slug,
+    fase,
+    etapaSalva,
+    step,
+    S,
+    form,
+    cpfChecado,
+    nomeAfsys,
+    contatosMasc,
+    sindicalizado,
+    isentoHolerite,
+    canaisOtp,
+    semEmail,
+    completando,
+    pendProtocolo,
+  ]);
+
   function set<K extends keyof InscricaoForm>(key: K, value: InscricaoForm[K]) {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors((e) => ({ ...e, [key]: '' }));
@@ -355,6 +433,9 @@ export function InscricaoPage() {
     setCanaisOtp(CANAIS_OTP_PADRAO);
     setSemEmail(false);
     setErroCpf('');
+    // O rascunho era do CPF anterior. O efeito de gravação recria um novo assim
+    // que houver o que guardar do CPF novo.
+    limparRascunho();
     renovarCpfTurnstile();
   }
 
@@ -465,6 +546,7 @@ export function InscricaoPage() {
         const r = await checarCpf(form.cpf, evento!.slug, cpfToken);
         if (r.found) {
           // Inscrição completa (INSCRITO) → bloqueia.
+          limparRascunho(); // não há wizard a retomar
           setJaInscrito(r);
           setFase('already');
           window.scrollTo(0, 0);
@@ -595,6 +677,7 @@ export function InscricaoPage() {
     set('holeriteArquivo', file);
     set('holeriteNome', file ? file.name : '');
     setErrors((e) => ({ ...e, holerite: '' }));
+    if (file) setAvisoHolerite(false);
   }
 
   // ---- etapa de verificação (OTP) ----
@@ -720,6 +803,9 @@ export function InscricaoPage() {
     setBusy(true);
     try {
       const r = await submitInscricao(form, evento!, token, completando);
+      // Inscrição gravada: o rascunho perdeu a razão de existir e some agora,
+      // sem esperar o fechamento da aba.
+      limparRascunho();
       if (r.jaInscrito) {
         setJaInscrito({ found: true, protocolo: r.protocolo, status: r.status });
         setFase('already');
@@ -947,7 +1033,14 @@ export function InscricaoPage() {
             </p>
             <p className="wz-step-q">Você autoriza seguir com a inscrição?</p>
             <div className="wz-choices">
-              <button type="button" className="wz-choice" onClick={() => setFase('declined')}>
+              <button
+                type="button"
+                className="wz-choice"
+                onClick={() => {
+                  limparRascunho(); // sem consentimento, nada do que foi digitado fica
+                  setFase('declined');
+                }}
+              >
                 Não autorizo
               </button>
               <button
@@ -1150,6 +1243,12 @@ export function InscricaoPage() {
                 holerite. Envie o documento para concluir.
               </p>
             )}
+            {avisoHolerite && !form.holeriteArquivo && (
+              <p className="wz-note">
+                O arquivo que você tinha anexado <b>não sobreviveu ao recarregamento</b> da página.
+                Seus outros dados foram preservados — anexe o holerite novamente para concluir.
+              </p>
+            )}
             <ChoiceField
               label="Você possui o holerite agora?"
               options={['Sim', 'Não']}
@@ -1269,6 +1368,16 @@ export function InscricaoPage() {
                 {escolheCanal ? 'o canal e o contato' : 'o contato'} — se estiver errado, corrija
                 aqui.
               </p>
+            )}
+
+            {/* O sistema do celular costuma descartar a aba em segundo plano; o
+                rascunho na sessão é o que devolve tudo ao voltar. Só prometemos
+                isso quando a gravação está mesmo funcionando. */}
+            {rascunhoAtivo && !semEmail && (
+              <span className="wz-hint wz-guardado">
+                Ao buscar o código {prefereEmail ? 'no seu e-mail' : 'no seu WhatsApp'}, volte para
+                esta aba. Seus dados ficam salvos.
+              </span>
             )}
 
             {/* Só os canais habilitados no evento. Com um só, nada a escolher. */}

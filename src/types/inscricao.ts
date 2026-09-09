@@ -16,6 +16,33 @@ export type ContatoPreferido = 'whatsapp' | 'email';
 // ela vem vazia, valem os dois: é o comportamento de sempre.
 export const CANAIS_OTP_PADRAO: ContatoPreferido[] = ['whatsapp', 'email'];
 
+// Etapas do wizard, pela chave interna (o rótulo visível e a ordem ficam em
+// InscricaoPage). Duas delas são condicionais, então a chave — e não o índice —
+// é o que identifica a etapa de forma estável: é assim que o rascunho salvo
+// aponta onde a pessoa parou.
+export type ChaveEtapa =
+  | 'CPF'
+  | 'LGPD'
+  | 'DADOS'
+  | 'CRIANCAS'
+  | 'SINDICAL'
+  | 'EMPRESA'
+  | 'HOLERITE'
+  | 'REVISAO'
+  | 'OTP';
+
+export const CHAVES_ETAPA: ChaveEtapa[] = [
+  'CPF',
+  'LGPD',
+  'DADOS',
+  'CRIANCAS',
+  'SINDICAL',
+  'EMPRESA',
+  'HOLERITE',
+  'REVISAO',
+  'OTP',
+];
+
 // ----- Crianças/dependentes (eventos com `pedeCriancas`) -----
 // Os textos abaixo são enviados ao backend EXATAMENTE como estão: a validação
 // server-side compara com esta lista fechada.

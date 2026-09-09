@@ -359,5 +359,9 @@ footer{border-top:1px solid var(--line);padding:40px 0 34px;background:var(--bg-
    reenviar, para ler como ação secundária e não como o botão principal */
 .wz-alt-acao{width:100%;margin:12px 0 18px}
 
+/* linha discreta da Verificação: lembra que o preenchimento fica salvo na
+   sessão enquanto a pessoa sai para buscar o código */
+.wz-guardado{margin-top:12px}
+
 .wz-hello{margin-top:16px;font-size:14px;line-height:1.55}
 .wz-hello b{display:block;font-weight:700;font-size:14.5px;margin-bottom:2px}
